@@ -22,8 +22,8 @@ type gridChild struct {
 
 func (child gridChild) Within(x, y int) bool {
 	screen := child.screen
-	return x >= screen.offsetX && x <= screen.offsetX+screen.width &&
-		y >= screen.offsetY && y <= screen.offsetY+screen.height
+	return x >= screen.offsetX && x < screen.offsetX+screen.width &&
+		y >= screen.offsetY && y < screen.offsetY+screen.height
 }
 
 func (child gridChild) Focus() {
@@ -148,36 +148,42 @@ func (grid *Grid) Draw(screen Screen) {
 		grid.OnResize(screen.Size())
 	}
 	screen.Clear()
+	screenChanged := false
 	if screen != grid.screen {
 		grid.screen = screen
-		for _, child := range grid.children {
+		screenChanged = true
+	}
+	for _, child := range grid.children {
+		if screenChanged {
 			child.screen.parent = screen
-			child.target.Draw(child.screen)
 		}
-	} else {
-		for _, child := range grid.children {
+		if grid.focused == nil || child != *grid.focused {
 			child.target.Draw(child.screen)
 		}
 	}
+	if grid.focused != nil {
+		grid.focused.target.Draw(grid.focused.screen)
+	}
 }
 
-func (grid *Grid) OnKeyEvent(event *tcell.EventKey) bool {
+func (grid *Grid) OnKeyEvent(event KeyEvent) bool {
 	if grid.focused != nil {
 		return grid.focused.target.OnKeyEvent(event)
 	}
 	return false
 }
 
-func (grid *Grid) OnPasteEvent(event *tcell.EventPaste) bool {
+func (grid *Grid) OnPasteEvent(event PasteEvent) bool {
 	if grid.focused != nil {
 		return grid.focused.target.OnPasteEvent(event)
 	}
 	return false
 }
 
-func (grid *Grid) OnMouseEvent(event *tcell.EventMouse) bool {
+func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 	if grid.focused != nil && grid.focused.Within(event.Position()) {
-		return grid.focused.target.OnMouseEvent(event)
+		screen := grid.focused.screen
+		return grid.focused.target.OnMouseEvent(OffsetMouseEvent(event, -screen.offsetX, -screen.offsetY))
 	}
 	for _, child := range grid.children {
 		if child.Within(event.Position()) {
@@ -188,8 +194,24 @@ func (grid *Grid) OnMouseEvent(event *tcell.EventMouse) bool {
 				grid.focused = &child
 				grid.focused.Focus()
 			}
-			return child.target.OnMouseEvent(event)
+			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.offsetX, -child.screen.offsetY)) ||
+				event.Buttons() == tcell.Button1
+
 		}
 	}
+	if event.Buttons() == tcell.Button1 && grid.focused != nil {
+		grid.focused.Blur()
+		grid.focused = nil
+		return true
+	}
 	return false
+}
+
+func (grid *Grid) Focus() {}
+
+func (grid *Grid) Blur() {
+	if grid.focused != nil {
+		grid.focused.Blur()
+		grid.focused = nil
+	}
 }

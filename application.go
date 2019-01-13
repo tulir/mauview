@@ -15,9 +15,9 @@ import (
 
 type Component interface {
 	Draw(screen Screen)
-	OnKeyEvent(event *tcell.EventKey) bool
-	OnPasteEvent(event *tcell.EventPaste) bool
-	OnMouseEvent(event *tcell.EventMouse) bool
+	OnKeyEvent(event KeyEvent) bool
+	OnPasteEvent(event PasteEvent) bool
+	OnMouseEvent(event MouseEvent) bool
 }
 
 type Focusable interface {
@@ -131,15 +131,15 @@ MainLoop:
 				break MainLoop
 			case *tcell.EventKey:
 				if app.Root.OnKeyEvent(event) {
-					app.update()
+					app.redraw() // app.update()
 				}
 			case *tcell.EventPaste:
 				if app.Root.OnPasteEvent(event) {
-					app.update()
+					app.redraw() // app.update()
 				}
 			case *tcell.EventMouse:
 				if app.Root.OnMouseEvent(event) {
-					app.update()
+					app.redraw() // app.update()
 				}
 			case *tcell.EventResize:
 				app.screen.Clear()

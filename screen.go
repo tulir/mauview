@@ -37,7 +37,7 @@ type ProxyScreen struct {
 	style            tcell.Style
 }
 
-func NewProxySubScreen(parent Screen, offsetX, offsetY, width, height int) Screen {
+func NewProxyScreen(parent Screen, offsetX, offsetY, width, height int) Screen {
 	return &ProxyScreen{
 		parent:  parent,
 		offsetX: offsetX,
