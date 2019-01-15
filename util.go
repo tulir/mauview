@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/mattn/go-runewidth"
 	"maunium.net/go/tcell"
-	runewidth "github.com/mattn/go-runewidth"
 )
 
 // Text alignment within a box.

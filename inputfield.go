@@ -19,7 +19,7 @@ import (
 	"maunium.net/go/tcell"
 )
 
-// InputField is a multi-line user-editable text area.
+// InputField is a single-line user-editable text field.
 //
 // Use SetMaskCharacter() to hide input from onlookers (e.g. for password
 // input).
