@@ -43,7 +43,7 @@ func main() {
 	grid.AddComponent(mauview.NewBox(
 		mauview.NewGrid(2, 2).
 			AddComponent(&Text{mauview.SimpleEventHandler{}, "Hello, World! (again)"}, 0, 1, 1, 1).
-			AddComponent(mauview.NewBox(nil), 0, 0, 2, 1).
+			AddComponent(mauview.NewBox(mauview.NewInputArea().SetPlaceholder("I'm holding a place!")), 0, 0, 2, 1).
 			AddComponent(mauview.NewBox(nil), 1, 1, 1, 1)),
 		1, 2, 1, 1)
 	grid.AddComponent(mauview.NewBox(nil), 2, 2, 1, 1)
