@@ -108,6 +108,10 @@ func (box *Box) OnMouseEvent(event MouseEvent) bool {
 		if box.Border {
 			event = OffsetMouseEvent(event, -1, -1)
 		}
+		x, y := event.Position()
+		if x < 0 || y < 0 || x > box.innerScreen.width || y > box.innerScreen.height {
+			return false
+		}
 		return box.Inner.OnMouseEvent(event)
 	}
 	return false
