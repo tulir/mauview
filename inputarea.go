@@ -63,8 +63,16 @@ type InputArea struct {
 	// An optional function which is called when the input has changed.
 	changed func(text string)
 
-	history    []*inputAreaSnapshot
+	// Change history for undo/redo functionality.
+	history []*inputAreaSnapshot
+	// Current position in the history array for redo functionality.
 	historyPtr int
+	// Maximum number of history snapshots to keep.
+	historyMaxSize int
+	// Maximum delay (ms) between changes to edit the previous snapshot instead of creating a new one.
+	historyMaxEditDelay int64
+	// Maximum age (ms) of the previous snapshot to edit the previous snapshot instead of craeting a new one.
+	historyMaxSnapshotAge int64
 }
 
 // NewInputArea returns a new input field.
@@ -84,69 +92,11 @@ func NewInputArea() *InputArea {
 
 		history:    []*inputAreaSnapshot{{"", 0, 0, 0, true}},
 		historyPtr: 0,
+
+		historyMaxSize:        256,
+		historyMaxEditDelay:   1 * 1000,
+		historyMaxSnapshotAge: 3 * 1000,
 	}
-}
-
-type inputAreaSnapshot struct {
-	text          string
-	cursorOffsetW int
-	origTimestamp int64
-	editTimestamp int64
-	locked        bool
-}
-
-const historySize = 256
-const ms = 1000
-const maxEditDelay = 1 * ms
-const maxOrigDelay = 3 * ms
-
-func millis() int64 {
-	return time.Now().UnixNano() / 1e6
-}
-
-func (field *InputArea) snapshot() {
-	cur := field.history[field.historyPtr]
-	now := millis()
-	if cur.locked || now > cur.editTimestamp+maxEditDelay || now > cur.origTimestamp+maxOrigDelay {
-		newSnapshot := &inputAreaSnapshot{
-			text:          field.text,
-			cursorOffsetW: field.cursorOffsetW,
-			origTimestamp: now,
-			editTimestamp: now,
-		}
-		if len(field.history) >= historySize {
-			field.history = append(field.history[1:field.historyPtr+1], newSnapshot)
-		} else {
-			field.history = append(field.history[0:field.historyPtr+1], newSnapshot)
-			field.historyPtr++
-		}
-	} else {
-		cur.text = field.text
-		cur.cursorOffsetW = field.cursorOffsetW
-		cur.editTimestamp = now
-	}
-}
-
-func (field *InputArea) Redo() {
-	if field.historyPtr >= len(field.history)-1 {
-		return
-	}
-	field.historyPtr++
-	newCur := field.history[field.historyPtr]
-	newCur.locked = true
-	field.text = newCur.text
-	field.cursorOffsetW = newCur.cursorOffsetW
-}
-
-func (field *InputArea) Undo() {
-	if field.historyPtr == 0 {
-		return
-	}
-	field.historyPtr--
-	newCur := field.history[field.historyPtr]
-	newCur.locked = true
-	field.text = newCur.text
-	field.cursorOffsetW = newCur.cursorOffsetW
 }
 
 // SetText sets the current text of the input field.
@@ -215,6 +165,65 @@ func (field *InputArea) GetTextHeight() int {
 	return len(field.lines)
 }
 
+// inputAreaSnapshot is a single history snapshot of the input area state.
+type inputAreaSnapshot struct {
+	text          string
+	cursorOffsetW int
+	origTimestamp int64
+	editTimestamp int64
+	locked        bool
+}
+
+func millis() int64 {
+	return time.Now().UnixNano() / 1e6
+}
+
+func (field *InputArea) snapshot() {
+	cur := field.history[field.historyPtr]
+	now := millis()
+	if cur.locked || now > cur.editTimestamp+field.historyMaxEditDelay || now > cur.origTimestamp+field.historyMaxSnapshotAge {
+		newSnapshot := &inputAreaSnapshot{
+			text:          field.text,
+			cursorOffsetW: field.cursorOffsetW,
+			origTimestamp: now,
+			editTimestamp: now,
+		}
+		if len(field.history) >= field.historyMaxSize {
+			field.history = append(field.history[1:field.historyPtr+1], newSnapshot)
+		} else {
+			field.history = append(field.history[0:field.historyPtr+1], newSnapshot)
+			field.historyPtr++
+		}
+	} else {
+		cur.text = field.text
+		cur.cursorOffsetW = field.cursorOffsetW
+		cur.editTimestamp = now
+	}
+}
+
+// Redo reverses an undo.
+func (field *InputArea) Redo() {
+	if field.historyPtr >= len(field.history)-1 {
+		return
+	}
+	field.historyPtr++
+	newCur := field.history[field.historyPtr]
+	newCur.locked = true
+	field.text = newCur.text
+	field.cursorOffsetW = newCur.cursorOffsetW
+}
+
+// Undo reverses the input area to the previous history snapshot.
+func (field *InputArea) Undo() {
+	if field.historyPtr == 0 {
+		return
+	}
+	field.historyPtr--
+	newCur := field.history[field.historyPtr]
+	newCur.locked = true
+	field.text = newCur.text
+	field.cursorOffsetW = newCur.cursorOffsetW
+}
 func matchBoundaryPattern(extract string) string {
 	matches := boundaryPattern.FindAllStringIndex(extract, -1)
 	if len(matches) > 0 {
@@ -326,8 +335,7 @@ func (field *InputArea) drawText(screen Screen) {
 		x := 0
 		for _, ch := range []rune(field.lines[y]) {
 			w := iaRuneWidth(ch)
-			_, _, style, _ := screen.GetContent(x, y)
-			style = style.Foreground(field.fieldTextColor)
+			style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
 			if rwOffset >= field.selectionStartW && rwOffset < field.selectionEndW {
 				style = style.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
 			}
@@ -624,11 +632,13 @@ func (field *InputArea) handleInputChanges(originalText string) {
 }
 
 func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
-	defer field.handleInputChanges(field.text)
 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
 	right := field.text[len(left):]
+	oldText := field.text
 	field.text = left + event.Text() + right
 	field.cursorOffsetW += iaStringWidth(event.Text())
+	field.handleInputChanges(oldText)
+	field.snapshot()
 	return true
 }
 
@@ -636,6 +646,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	hasMod := func(mod tcell.ModMask) bool {
 		return event.Modifiers()&mod != 0
 	}
+	oldText := field.text
 
 	doSnapshot := false
 	// Process key event.
@@ -688,7 +699,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	default:
 		return false
 	}
-	field.handleInputChanges(field.text)
+	field.handleInputChanges(oldText)
 	if doSnapshot {
 		field.snapshot()
 	}
@@ -709,9 +720,13 @@ func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 		cursorX, cursorY := event.Position()
 		field.MoveCursorPos(cursorX, field.viewOffsetY+cursorY, event.HasMotion())
 	case tcell.WheelDown:
-		field.MoveCursorDown(false)
+		field.viewOffsetY += 3
+		field.cursorOffsetY += 3
+		field.recalculateCursorOffset()
 	case tcell.WheelUp:
-		field.MoveCursorUp(false)
+		field.viewOffsetY -= 3
+		field.cursorOffsetY -= 3
+		field.recalculateCursorOffset()
 	default:
 		return false
 	}
