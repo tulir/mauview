@@ -256,7 +256,7 @@ func (field *InputArea) drawText(screen Screen) {
 			w := iaRuneWidth(ch)
 			_, _, style, _ := screen.GetContent(x, y)
 			style = style.Foreground(field.fieldTextColor)
-			if rwOffset >= field.selectionStartW && rwOffset <= field.selectionEndW {
+			if rwOffset >= field.selectionStartW && rwOffset < field.selectionEndW {
 				style = style.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
 			}
 			rwOffset += w
