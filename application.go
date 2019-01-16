@@ -183,6 +183,7 @@ func (app *Application) QueueUpdate(update func()) {
 	app.updates <- update
 }
 
+// Screen returns the main tcell screen currently used in the app.
 func (app *Application) Screen() tcell.Screen {
 	return app.screen
 }
@@ -192,6 +193,7 @@ func (app *Application) Redraw() {
 }
 
 func (app *Application) redraw() {
+	app.screen.HideCursor()
 	app.Root.Draw(app.screen)
 	app.update()
 }

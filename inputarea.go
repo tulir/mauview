@@ -38,7 +38,7 @@ type InputArea struct {
 
 	// The text split into lines. Updated each during each render.
 	lines []string
-	// The height of the input area when the text was previously split into lines.
+	// The previous known height of the input area.
 	height int
 
 	// The text to be displayed in the input area when it is empty.
@@ -73,6 +73,12 @@ func NewInputArea() *InputArea {
 		placeholderTextColor:     Styles.SecondaryTextColor,
 		selectionTextColor:       Styles.PrimaryTextColor,
 		selectionBackgroundColor: Styles.ContrastBackgroundColor,
+
+		vimBindings: false,
+		focused:     false,
+
+		selectionEndW:   -1,
+		selectionStartW: -1,
 	}
 }
 
@@ -183,7 +189,6 @@ func (field *InputArea) recalculateCursorOffset() {
 func (field *InputArea) recalculateCursorPos() {
 	cursorOffsetY := 0
 	cursorOffsetX := field.cursorOffsetW
-	var firstLineOffset, lastLineOffset int
 	for i, str := range field.lines {
 		if cursorOffsetX >= iaStringWidth(str) {
 			cursorOffsetX -= iaStringWidth(str)
@@ -191,34 +196,15 @@ func (field *InputArea) recalculateCursorPos() {
 			cursorOffsetY = i
 			break
 		}
-		if i < field.viewOffsetY {
-			firstLineOffset += iaStringWidth(str) + 1
-		} else if i > field.viewOffsetY+field.height-2 {
-			lastLineOffset += iaStringWidth(str) + 1
-		}
 	}
 	field.cursorOffsetX = cursorOffsetX
 	field.cursorOffsetY = cursorOffsetY
-	if field.cursorOffsetY-field.viewOffsetY < 0 {
-		field.viewOffsetY = field.cursorOffsetY
-	} else if field.cursorOffsetY >= field.viewOffsetY+field.height {
-		field.viewOffsetY = field.cursorOffsetY - field.height + 1
-	}
-	if len(field.lines) > field.height && field.viewOffsetY+field.height > len(field.lines) {
-		field.viewOffsetY = len(field.lines) - field.height
-	}
 }
 
-func (field *InputArea) prepareText(screen Screen) {
-	width, height := screen.Size()
+func (field *InputArea) prepareText(width int) {
 	var lines []string
-	defer func() {
-		field.height = height
+	if len(field.text) == 0 {
 		field.lines = lines
-	}()
-	if len(field.text) == 0 && len(field.placeholder) > 0 {
-		Print(screen, field.placeholder, 0, 0, width, AlignLeft, field.placeholderTextColor)
-		field.viewOffsetY = 0
 		return
 	}
 	forcedLinebreaks := strings.Split(field.text, "\n")
@@ -237,28 +223,40 @@ func (field *InputArea) prepareText(screen Screen) {
 			str = str[len(extract):]
 		}
 	}
+	field.lines = lines
+}
 
+func (field *InputArea) updateViewOffset(height int) {
 	if field.viewOffsetY < 0 {
 		field.viewOffsetY = 0
-	} else if field.viewOffsetY > len(lines) {
-		field.viewOffsetY = len(lines) - height
+	} else if len(field.lines) > height && field.viewOffsetY+height > len(field.lines) {
+		field.viewOffsetY = len(field.lines) - height
 	}
+	if field.cursorOffsetY-field.viewOffsetY < 0 {
+		field.viewOffsetY = field.cursorOffsetY
+	} else if field.cursorOffsetY >= field.viewOffsetY+height {
+		field.viewOffsetY = field.cursorOffsetY - height + 1
+	}
+	field.height = height
 }
 
 // drawText draws the text and the cursor.
 func (field *InputArea) drawText(screen Screen) {
+	width, height := screen.Size()
+	if len(field.lines) == 0 {
+		if len(field.placeholder) > 0 {
+			Print(screen, field.placeholder, 0, 0, width, AlignLeft, field.placeholderTextColor)
+		}
+		return
+	}
 	rwOffset := 0
-	for y := 0; y <= field.viewOffsetY+field.height && y < len(field.lines); y++ {
+	for y := 0; y <= field.viewOffsetY+height && y < len(field.lines); y++ {
 		if y < field.viewOffsetY {
 			rwOffset += iaStringWidth(field.lines[y])
 			continue
 		}
 		x := 0
 		for _, ch := range []rune(field.lines[y]) {
-			if ch == '\n' {
-				rwOffset++
-				continue
-			}
 			w := iaRuneWidth(ch)
 			_, _, style, _ := screen.GetContent(x, y)
 			style = style.Foreground(field.fieldTextColor)
@@ -284,10 +282,11 @@ func (field *InputArea) Draw(screen Screen) {
 
 	//screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
 	screen.Clear()
-	field.prepareText(screen)
+	field.prepareText(width)
 	field.recalculateCursorPos()
+	field.updateViewOffset(height)
 	field.drawText(screen)
-	if field.focused {
+	if field.focused && field.selectionEndW == -1 {
 		screen.ShowCursor(field.cursorOffsetX, field.cursorOffsetY-field.viewOffsetY)
 	}
 }
