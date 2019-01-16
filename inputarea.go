@@ -18,16 +18,26 @@ import (
 
 // InputArea is a multi-line user-editable text area.
 type InputArea struct {
-	// Cursor position
+	// Cursor position as the runewidth from the start of the input area text.
 	cursorOffsetW int
+	// Cursor offset from the left of the input area.
 	cursorOffsetX int
+	// Cursor offset from the top of the text.
 	cursorOffsetY int
-	viewOffsetY   int
+	// Number of lines to offset rendering.
+	viewOffsetY int
+
+	// The start of the selection as the runewidth from the start of the input area text.
+	selectionStartW int
+	// The end of the selection.
+	selectionEndW int
 
 	// The text that was entered.
 	text string
 
-	lines  []string
+	// The text split into lines. Updated each during each render.
+	lines []string
+	// The height of the input area when the text was previously split into lines.
 	height int
 
 	// The text to be displayed in the input area when it is empty.
@@ -35,16 +45,19 @@ type InputArea struct {
 
 	// The background color of the input area.
 	fieldBackgroundColor tcell.Color
-
 	// The text color of the input area.
 	fieldTextColor tcell.Color
-
 	// The text color of the placeholder.
 	placeholderTextColor tcell.Color
+	// The text color of selected text.
+	selectionTextColor tcell.Color
+	// The background color of selected text.
+	selectionBackgroundColor tcell.Color
 
 	// Whether or not to enable vim-style keybindings.
 	vimBindings bool
 
+	// Whether or not the input area is focused.
 	focused bool
 
 	// An optional function which is called when the input has changed.
@@ -54,9 +67,11 @@ type InputArea struct {
 // NewInputArea returns a new input field.
 func NewInputArea() *InputArea {
 	return &InputArea{
-		fieldBackgroundColor: Styles.ContrastBackgroundColor,
-		fieldTextColor:       Styles.PrimaryTextColor,
-		placeholderTextColor: Styles.SecondaryTextColor,
+		fieldBackgroundColor:     Styles.PrimitiveBackgroundColor,
+		fieldTextColor:           Styles.PrimaryTextColor,
+		placeholderTextColor:     Styles.SecondaryTextColor,
+		selectionTextColor:       Styles.PrimaryTextColor,
+		selectionBackgroundColor: Styles.ContrastBackgroundColor,
 	}
 }
 
@@ -226,16 +241,25 @@ func (field *InputArea) prepareText(screen Screen) {
 
 // drawText draws the text and the cursor.
 func (field *InputArea) drawText(screen Screen) {
-	for y := field.viewOffsetY; y <= field.viewOffsetY+field.height && y < len(field.lines); y++ {
-		runes := []rune(field.lines[y])
+	rwOffset := 0
+	for y := 0; y <= field.viewOffsetY+field.height && y < len(field.lines); y++ {
+		if y < field.viewOffsetY {
+			rwOffset += iaStringWidth(field.lines[y])
+			continue
+		}
 		x := 0
-		for _, ch := range runes {
+		for _, ch := range []rune(field.lines[y]) {
 			if ch == '\n' {
+				rwOffset++
 				continue
 			}
 			w := iaRuneWidth(ch)
-			_, _, style, _ := screen.GetContent(x, 0)
+			_, _, style, _ := screen.GetContent(x, y)
 			style = style.Foreground(field.fieldTextColor)
+			if rwOffset >= field.selectionStartW && rwOffset <= field.selectionEndW {
+				style = style.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
+			}
+			rwOffset += w
 			for w > 0 {
 				screen.SetContent(x, y-field.viewOffsetY, ch, nil, style)
 				x++
@@ -252,7 +276,7 @@ func (field *InputArea) Draw(screen Screen) {
 		return
 	}
 
-	screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
+	//screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
 	screen.Clear()
 	field.prepareText(screen)
 	field.recalculateCursorPos()
@@ -305,30 +329,63 @@ func (field *InputArea) TypeRune(ch rune) {
 	field.cursorOffsetW += iaRuneWidth(ch)
 }
 
-func (field *InputArea) MoveCursorLeft(moveWord bool) {
+func (field *InputArea) MoveCursorLeft(moveWord, extendSelection bool) {
 	before := iaSubstringBefore(field.text, field.cursorOffsetW)
+	var diff int
 	if moveWord {
-		found := lastWord.FindString(before)
-		field.cursorOffsetW -= iaStringWidth(found)
+		diff = -iaStringWidth(lastWord.FindString(before))
 	} else if len(before) > 0 {
 		beforeRunes := []rune(before)
 		char := beforeRunes[len(beforeRunes)-1]
-		field.cursorOffsetW -= iaRuneWidth(char)
+		diff = -iaRuneWidth(char)
+	}
+	if extendSelection {
+		field.extendSelection(diff)
+	} else {
+		field.moveCursor(diff)
 	}
 }
 
-func (field *InputArea) MoveCursorRight(moveWord bool) {
+func (field *InputArea) MoveCursorRight(moveWord, extendSelection bool) {
 	before := iaSubstringBefore(field.text, field.cursorOffsetW)
 	after := field.text[len(before):]
+	var diff int
 	if moveWord {
-		field.cursorOffsetW += iaStringWidth(firstWord.FindString(after))
+		diff = +iaStringWidth(firstWord.FindString(after))
 	} else if len(after) > 0 {
 		char := []rune(after)[0]
-		field.cursorOffsetW += iaRuneWidth(char)
+		diff = +iaRuneWidth(char)
+	}
+	if extendSelection {
+		field.extendSelection(diff)
+	} else {
+		field.moveCursor(diff)
 	}
 }
 
-func (field *InputArea) MoveCursorUp() {
+func (field *InputArea) moveCursor(diff int) {
+	field.selectionEndW = -1
+	field.selectionStartW = -1
+	field.cursorOffsetW += diff
+}
+
+func (field *InputArea) extendSelection(diff int) {
+	if field.selectionEndW == -1 {
+		field.selectionStartW = field.cursorOffsetW
+		field.selectionEndW = field.selectionStartW + diff
+	} else if field.cursorOffsetW == field.selectionEndW {
+		field.selectionEndW += diff
+	} else if field.cursorOffsetW == field.selectionStartW {
+		field.selectionStartW += diff
+	}
+	field.cursorOffsetW += diff
+	if field.selectionStartW > field.selectionEndW {
+		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
+	}
+}
+
+func (field *InputArea) MoveCursorUp(extendSelection bool) {
+	pX, pY := field.cursorOffsetX, field.cursorOffsetY
 	if field.cursorOffsetY > 0 {
 		field.cursorOffsetY--
 		lineWidth := iaStringWidth(field.lines[field.cursorOffsetY])
@@ -339,10 +396,20 @@ func (field *InputArea) MoveCursorUp() {
 	if field.viewOffsetY > field.cursorOffsetY {
 		field.viewOffsetY--
 	}
+	if extendSelection {
+		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
+		curLineBefore := iaSubstringBefore(field.lines[field.cursorOffsetY], field.cursorOffsetX)
+		curLineAfter := field.lines[field.cursorOffsetY][len(curLineBefore):]
+		field.extendSelection(-iaStringWidth(curLineAfter + prevLineBefore))
+	} else {
+		field.selectionStartW = -1
+		field.selectionEndW = -1
+	}
 	field.recalculateCursorOffset()
 }
 
-func (field *InputArea) MoveCursorDown() {
+func (field *InputArea) MoveCursorDown(extendSelection bool) {
+	pX, pY := field.cursorOffsetX, field.cursorOffsetY
 	if field.cursorOffsetY < len(field.lines)-1 {
 		field.cursorOffsetY++
 		lineWidth := iaStringWidth(field.lines[field.cursorOffsetY])
@@ -356,11 +423,49 @@ func (field *InputArea) MoveCursorDown() {
 	if field.viewOffsetY+field.height < field.cursorOffsetY {
 		field.viewOffsetY++
 	}
+	if extendSelection {
+		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
+		prevLineAfter := field.lines[pY][len(prevLineBefore):]
+		curLineBefore := iaSubstringBefore(field.lines[field.cursorOffsetY], field.cursorOffsetX)
+		field.extendSelection(iaStringWidth(prevLineAfter + curLineBefore))
+	} else {
+		field.selectionStartW = -1
+		field.selectionEndW = -1
+	}
 	field.recalculateCursorOffset()
 }
 
+func (field *InputArea) MoveCursorPos(x, y int, moveSelection bool) {
+	field.cursorOffsetX = x
+	field.cursorOffsetY = y
+	if field.cursorOffsetY > len(field.lines) {
+		field.cursorOffsetY = len(field.lines) - 1
+	}
+	prevOffset := field.cursorOffsetW
+	field.recalculateCursorOffset()
+	if moveSelection {
+		if field.selectionEndW == -1 {
+			field.selectionStartW = prevOffset
+			field.selectionEndW = field.cursorOffsetW
+		} else if prevOffset == field.selectionEndW {
+			field.selectionEndW = field.cursorOffsetW
+		} else {
+			field.selectionStartW = field.cursorOffsetW
+		}
+		if field.selectionStartW > field.selectionEndW {
+			field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
+		}
+	} else {
+		field.selectionStartW = -1
+		field.selectionEndW = -1
+	}
+}
+
 func (field *InputArea) RemoveNextCharacter() {
-	if field.cursorOffsetW >= iaStringWidth(field.text) {
+	if field.selectionEndW > 0 {
+		field.RemoveSelection()
+		return
+	} else if field.cursorOffsetW >= iaStringWidth(field.text) {
 		return
 	}
 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
@@ -377,8 +482,23 @@ func (field *InputArea) RemovePreviousWord() {
 	field.cursorOffsetW = iaStringWidth(replacement)
 }
 
+func (field *InputArea) RemoveSelection() {
+	leftLeft := iaSubstringBefore(field.text, field.selectionStartW)
+	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
+	rightRight := field.text[len(rightLeft):]
+	field.text = leftLeft + rightRight
+	if field.cursorOffsetW == field.selectionEndW {
+		field.cursorOffsetW -= iaStringWidth(rightLeft[len(leftLeft):])
+	}
+	field.selectionEndW = -1
+	field.selectionStartW = -1
+}
+
 func (field *InputArea) RemovePreviousCharacter() {
-	if field.cursorOffsetW == 0 {
+	if field.selectionEndW > 0 {
+		field.RemoveSelection()
+		return
+	} else if field.cursorOffsetW == 0 {
 		return
 	}
 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
@@ -400,6 +520,8 @@ func (field *InputArea) Clear() {
 	field.cursorOffsetW = 0
 	field.cursorOffsetX = 0
 	field.cursorOffsetY = 0
+	field.selectionEndW = -1
+	field.selectionStartW = -1
 	field.viewOffsetY = 0
 }
 
@@ -412,8 +534,17 @@ func (field *InputArea) handleInputChanges(originalText string) {
 	// Make sure cursor offset is valid
 	if field.cursorOffsetW < 0 {
 		field.cursorOffsetW = 0
-	} else if textWidth := iaStringWidth(field.text); field.cursorOffsetW > textWidth {
+	}
+	textWidth := iaStringWidth(field.text)
+	if field.cursorOffsetW > textWidth {
 		field.cursorOffsetW = textWidth
+	}
+	if field.selectionEndW > textWidth {
+		field.selectionEndW = textWidth
+	}
+	if field.selectionEndW <= field.selectionStartW {
+		field.selectionStartW = -1
+		field.selectionEndW = -1
 	}
 }
 
@@ -429,20 +560,24 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	defer field.handleInputChanges(field.text)
 
+	hasMod := func(mod tcell.ModMask) bool {
+		return event.Modifiers()&mod != 0
+	}
+
 	// Process key event.
 	switch key := event.Key(); key {
 	case tcell.KeyRune:
 		field.TypeRune(event.Rune())
 	case tcell.KeyEnter:
 		field.TypeRune('\n')
-	case tcell.KeyLeft:
-		field.MoveCursorLeft(event.Modifiers() == tcell.ModCtrl)
-	case tcell.KeyRight:
-		field.MoveCursorRight(event.Modifiers() == tcell.ModCtrl)
-	case tcell.KeyUp:
-		field.MoveCursorUp()
-	case tcell.KeyDown:
-		field.MoveCursorDown()
+	case tcell.KeyLeft, tcell.KeyCtrlLeft, tcell.KeyShiftLeft, tcell.KeyCtrlShiftLeft:
+		field.MoveCursorLeft(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
+	case tcell.KeyRight, tcell.KeyCtrlRight, tcell.KeyShiftRight, tcell.KeyCtrlShiftRight:
+		field.MoveCursorRight(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
+	case tcell.KeyUp, tcell.KeyShiftUp:
+		field.MoveCursorUp(hasMod(tcell.ModShift))
+	case tcell.KeyDown, tcell.KeyShiftDown:
+		field.MoveCursorDown(hasMod(tcell.ModShift))
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
 	case tcell.KeyCtrlU:
@@ -453,8 +588,12 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		if field.vimBindings {
 			field.RemovePreviousWord()
 		}
-	case tcell.KeyCtrlR:
-		field.recalculateCursorOffset()
+	case tcell.KeyCtrlA:
+		if !field.vimBindings {
+			field.selectionStartW = 0
+			field.selectionEndW = iaStringWidth(field.text)
+			field.cursorOffsetW = field.selectionEndW
+		}
 	case tcell.KeyBackspace:
 		field.RemovePreviousWord()
 	case tcell.KeyBackspace2:
@@ -477,16 +616,11 @@ func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 	switch event.Buttons() {
 	case tcell.Button1:
 		cursorX, cursorY := event.Position()
-		field.cursorOffsetX = cursorX
-		field.cursorOffsetY = field.viewOffsetY + cursorY
-		if field.cursorOffsetY > len(field.lines) {
-			field.cursorOffsetY = len(field.lines) - 1
-		}
-		field.recalculateCursorOffset()
+		field.MoveCursorPos(cursorX, field.viewOffsetY+cursorY, event.HasMotion())
 	case tcell.WheelDown:
-		field.MoveCursorDown()
+		field.MoveCursorDown(false)
 	case tcell.WheelUp:
-		field.MoveCursorUp()
+		field.MoveCursorUp(false)
 	default:
 		return false
 	}
