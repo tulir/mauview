@@ -38,8 +38,6 @@ type InputArea struct {
 
 	// The text split into lines. Updated each during each render.
 	lines []string
-	// The previous known height of the input area.
-	height int
 
 	// The text to be displayed in the input area when it is empty.
 	placeholder string
@@ -237,7 +235,6 @@ func (field *InputArea) updateViewOffset(height int) {
 	} else if field.cursorOffsetY >= field.viewOffsetY+height {
 		field.viewOffsetY = field.cursorOffsetY - height + 1
 	}
-	field.height = height
 }
 
 // drawText draws the text and the cursor.
@@ -280,7 +277,7 @@ func (field *InputArea) Draw(screen Screen) {
 		return
 	}
 
-	//screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
+	screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
 	screen.Clear()
 	field.prepareText(width)
 	field.recalculateCursorPos()
@@ -398,9 +395,6 @@ func (field *InputArea) MoveCursorUp(extendSelection bool) {
 			field.cursorOffsetX = lineWidth
 		}
 	}
-	if field.viewOffsetY > field.cursorOffsetY {
-		field.viewOffsetY--
-	}
 	if extendSelection {
 		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
 		curLineBefore := iaSubstringBefore(field.lines[field.cursorOffsetY], field.cursorOffsetX)
@@ -424,9 +418,6 @@ func (field *InputArea) MoveCursorDown(extendSelection bool) {
 	} else if field.cursorOffsetY == len(field.lines)-1 {
 		lineWidth := iaStringWidth(field.lines[field.cursorOffsetY])
 		field.cursorOffsetX = lineWidth
-	}
-	if field.viewOffsetY+field.height < field.cursorOffsetY {
-		field.viewOffsetY++
 	}
 	if extendSelection {
 		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
