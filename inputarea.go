@@ -11,6 +11,7 @@ package mauview
 
 import (
 	"strings"
+	"time"
 
 	"github.com/mattn/go-runewidth"
 
@@ -61,6 +62,9 @@ type InputArea struct {
 
 	// An optional function which is called when the input has changed.
 	changed func(text string)
+
+	history    []*inputAreaSnapshot
+	historyPtr int
 }
 
 // NewInputArea returns a new input field.
@@ -77,7 +81,72 @@ func NewInputArea() *InputArea {
 
 		selectionEndW:   -1,
 		selectionStartW: -1,
+
+		history:    []*inputAreaSnapshot{{"", 0, 0, 0, true}},
+		historyPtr: 0,
 	}
+}
+
+type inputAreaSnapshot struct {
+	text          string
+	cursorOffsetW int
+	origTimestamp int64
+	editTimestamp int64
+	locked        bool
+}
+
+const historySize = 256
+const ms = 1000
+const maxEditDelay = 1 * ms
+const maxOrigDelay = 3 * ms
+
+func millis() int64 {
+	return time.Now().UnixNano() / 1e6
+}
+
+func (field *InputArea) snapshot() {
+	cur := field.history[field.historyPtr]
+	now := millis()
+	if cur.locked || now > cur.editTimestamp+maxEditDelay || now > cur.origTimestamp+maxOrigDelay {
+		newSnapshot := &inputAreaSnapshot{
+			text:          field.text,
+			cursorOffsetW: field.cursorOffsetW,
+			origTimestamp: now,
+			editTimestamp: now,
+		}
+		if len(field.history) >= historySize {
+			field.history = append(field.history[1:field.historyPtr+1], newSnapshot)
+		} else {
+			field.history = append(field.history[0:field.historyPtr+1], newSnapshot)
+			field.historyPtr++
+		}
+	} else {
+		cur.text = field.text
+		cur.cursorOffsetW = field.cursorOffsetW
+		cur.editTimestamp = now
+	}
+}
+
+func (field *InputArea) Redo() {
+	if field.historyPtr >= len(field.history)-1 {
+		return
+	}
+	field.historyPtr++
+	newCur := field.history[field.historyPtr]
+	newCur.locked = true
+	field.text = newCur.text
+	field.cursorOffsetW = newCur.cursorOffsetW
+}
+
+func (field *InputArea) Undo() {
+	if field.historyPtr == 0 {
+		return
+	}
+	field.historyPtr--
+	newCur := field.history[field.historyPtr]
+	newCur.locked = true
+	field.text = newCur.text
+	field.cursorOffsetW = newCur.cursorOffsetW
 }
 
 // SetText sets the current text of the input field.
@@ -86,6 +155,7 @@ func (field *InputArea) SetText(text string) *InputArea {
 	if field.changed != nil {
 		field.changed(text)
 	}
+	field.snapshot()
 	return field
 }
 
@@ -100,6 +170,7 @@ func (field *InputArea) SetTextAndMoveCursor(text string) *InputArea {
 	if field.changed != nil {
 		field.changed(field.text)
 	}
+	field.snapshot()
 	return field
 }
 
@@ -394,6 +465,8 @@ func (field *InputArea) MoveCursorUp(extendSelection bool) {
 		if lineWidth < field.cursorOffsetX {
 			field.cursorOffsetX = lineWidth
 		}
+	} else {
+		field.cursorOffsetX = 0
 	}
 	if extendSelection {
 		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
@@ -560,18 +633,19 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 }
 
 func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
-	defer field.handleInputChanges(field.text)
-
 	hasMod := func(mod tcell.ModMask) bool {
 		return event.Modifiers()&mod != 0
 	}
 
+	doSnapshot := false
 	// Process key event.
 	switch key := event.Key(); key {
 	case tcell.KeyRune:
 		field.TypeRune(event.Rune())
+		doSnapshot = true
 	case tcell.KeyEnter:
 		field.TypeRune('\n')
+		doSnapshot = true
 	case tcell.KeyLeft, tcell.KeyCtrlLeft, tcell.KeyShiftLeft, tcell.KeyCtrlShiftLeft:
 		field.MoveCursorLeft(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
 	case tcell.KeyRight, tcell.KeyCtrlRight, tcell.KeyShiftRight, tcell.KeyCtrlShiftRight:
@@ -582,24 +656,41 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		field.MoveCursorDown(hasMod(tcell.ModShift))
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
+		doSnapshot = true
 	case tcell.KeyCtrlU:
 		if field.vimBindings {
 			field.Clear()
+			doSnapshot = true
 		}
 	case tcell.KeyCtrlW:
 		if field.vimBindings {
 			field.RemovePreviousWord()
+			doSnapshot = true
 		}
 	case tcell.KeyCtrlA:
 		if !field.vimBindings {
 			field.SelectAll()
 		}
+	case tcell.KeyCtrlZ:
+		if !field.vimBindings {
+			field.Undo()
+		}
+	case tcell.KeyCtrlY:
+		if !field.vimBindings {
+			field.Redo()
+		}
 	case tcell.KeyBackspace:
 		field.RemovePreviousWord()
+		doSnapshot = true
 	case tcell.KeyBackspace2:
 		field.RemovePreviousCharacter()
+		doSnapshot = true
 	default:
 		return false
+	}
+	field.handleInputChanges(field.text)
+	if doSnapshot {
+		field.snapshot()
 	}
 	return true
 }
