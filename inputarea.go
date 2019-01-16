@@ -10,8 +10,9 @@
 package mauview
 
 import (
-	"github.com/mattn/go-runewidth"
 	"strings"
+
+	"github.com/mattn/go-runewidth"
 
 	"maunium.net/go/tcell"
 )
@@ -132,6 +133,11 @@ func (field *InputArea) SetPlaceholderExtColor(color tcell.Color) *InputArea {
 func (field *InputArea) SetChangedFunc(handler func(text string)) *InputArea {
 	field.changed = handler
 	return field
+}
+
+// GetTextHeight returns the number of lines in the text during the previous render.
+func (field *InputArea) GetTextHeight() int {
+	return len(field.lines)
 }
 
 func matchBoundaryPattern(extract string) string {
@@ -525,6 +531,12 @@ func (field *InputArea) Clear() {
 	field.viewOffsetY = 0
 }
 
+func (field *InputArea) SelectAll() {
+	field.selectionStartW = 0
+	field.selectionEndW = iaStringWidth(field.text)
+	field.cursorOffsetW = field.selectionEndW
+}
+
 func (field *InputArea) handleInputChanges(originalText string) {
 	// Trigger changed events.
 	if field.text != originalText && field.changed != nil {
@@ -590,9 +602,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		}
 	case tcell.KeyCtrlA:
 		if !field.vimBindings {
-			field.selectionStartW = 0
-			field.selectionEndW = iaStringWidth(field.text)
-			field.cursorOffsetW = field.selectionEndW
+			field.SelectAll()
 		}
 	case tcell.KeyBackspace:
 		field.RemovePreviousWord()
