@@ -188,7 +188,7 @@ func (app *Application) Screen() tcell.Screen {
 }
 
 func (app *Application) Redraw() {
-	app.QueueUpdate(app.Redraw)
+	app.QueueUpdate(app.redraw)
 }
 
 func (app *Application) redraw() {
