@@ -195,19 +195,21 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 	}
 	for _, child := range grid.children {
 		if child.Within(event.Position()) {
-			if event.Buttons() == tcell.Button1 {
+			focusChanged := false
+			if event.Buttons() == tcell.Button1 && !event.HasMotion() {
 				if grid.focused != nil {
 					grid.focused.Blur()
 				}
 				grid.focused = &child
 				grid.focused.Focus()
+				focusChanged = true
 			}
 			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.offsetX, -child.screen.offsetY)) ||
-				event.Buttons() == tcell.Button1
+				focusChanged
 
 		}
 	}
-	if event.Buttons() == tcell.Button1 && grid.focused != nil {
+	if event.Buttons() == tcell.Button1 && !event.HasMotion() && grid.focused != nil {
 		grid.focused.Blur()
 		grid.focused = nil
 		return true

@@ -126,9 +126,6 @@ func (box *Box) OnPasteEvent(event PasteEvent) bool {
 }
 
 func (box *Box) OnMouseEvent(event MouseEvent) bool {
-	if event.Buttons() == tcell.Button1 {
-		box.Focus()
-	}
 	if box.inner != nil {
 		if box.border {
 			event = OffsetMouseEvent(event, -1, -1)

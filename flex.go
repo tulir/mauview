@@ -132,19 +132,21 @@ func (flex *Flex) OnMouseEvent(event MouseEvent) bool {
 	}
 	for _, child := range flex.children {
 		if child.Within(event.Position()) {
-			if event.Buttons() == tcell.Button1 {
+			focusChanged := false
+			if event.Buttons() == tcell.Button1 && !event.HasMotion() {
 				if flex.focused != nil {
 					flex.focused.Blur()
 				}
 				flex.focused = &child
 				flex.focused.Focus()
+				focusChanged = true
 			}
 			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.offsetX, -child.screen.offsetY)) ||
-				event.Buttons() == tcell.Button1
+				focusChanged
 
 		}
 	}
-	if event.Buttons() == tcell.Button1 && flex.focused != nil {
+	if event.Buttons() == tcell.Button1 && flex.focused != nil && !event.HasMotion()  {
 		flex.focused.Blur()
 		flex.focused = nil
 		return true
