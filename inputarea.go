@@ -89,6 +89,12 @@ type InputArea struct {
 	// Used to detect if the mouse is still over the same word.
 	lastWordSelectionExtendXStart int
 	lastWordSelectionExtendXEnd   int
+	// The position where the current selection streak started.
+	// Used to properly handle the user selecting text backwards.
+	selectionStreakStartWStart int
+	selectionStreakStartWEnd   int
+	selectionStreakStartXStart int
+	selectionStreakStartY      int
 }
 
 // NewInputArea returns a new input field.
@@ -629,16 +635,27 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 	fullLine := (field.clickStreak-2)%2 == 1
 	if fullLine {
 		field.cursorOffsetX = iaStringWidth(line)
+
 		field.recalculateCursorOffset()
+
 		field.selectionStartW = field.cursorOffsetW - field.cursorOffsetX
 		field.selectionEndW = field.cursorOffsetW
 	} else {
 		beforePos, afterPos := findWordAt(line, x)
 		field.cursorOffsetX = iaStringWidth(line[:afterPos])
+
 		field.recalculateCursorOffset()
-		field.selectionStartW = field.cursorOffsetW - iaStringWidth(line[beforePos:afterPos])
+
+		wordWidth := iaStringWidth(line[beforePos:afterPos])
+		field.selectionStartW = field.cursorOffsetW - wordWidth
 		field.selectionEndW = field.cursorOffsetW
+
+		field.selectionStreakStartWStart = field.selectionStartW
+		field.selectionStreakStartWEnd = field.selectionEndW
+		field.selectionStreakStartXStart = field.cursorOffsetX - wordWidth
 	}
+
+	field.selectionStreakStartY = field.cursorOffsetY
 }
 
 // ExtendSelection extends the selection as if the user dragged their mouse to the given coordinates.
@@ -657,18 +674,32 @@ func (field *InputArea) ExtendSelection(x, y int) {
 		beforePos, afterPos := findWordAt(line, x)
 		field.lastWordSelectionExtendXStart = beforePos
 		field.lastWordSelectionExtendXEnd = afterPos
-		if field.cursorOffsetW == field.selectionStartW {
+		if y < field.selectionStreakStartY || (y == field.selectionStreakStartY && x < field.selectionStreakStartXStart) {
+			field.cursorOffsetW = field.selectionStartW
+			field.selectionEndW = field.selectionStreakStartWEnd
 			field.cursorOffsetX = iaStringWidth(line[:beforePos])
 		} else {
+			field.cursorOffsetW = field.selectionEndW
+			field.selectionStartW = field.selectionStreakStartWStart
 			field.cursorOffsetX = iaStringWidth(line[:afterPos])
 		}
 	} else {
 		if field.lastClickY == y {
 			return
 		}
-		if field.cursorOffsetW == field.selectionStartW {
+		if field.cursorOffsetY == field.selectionStreakStartY {
+			// Special case to not mess up stuff when dragging mouse over selection streak start.
+			line := field.lines[field.cursorOffsetY]
+			field.cursorOffsetX = iaStringWidth(line)
+			field.recalculateCursorOffset()
+			field.selectionStartW = field.cursorOffsetW - field.cursorOffsetX
+			field.selectionEndW = field.cursorOffsetW
+			return
+		} else if field.cursorOffsetY < field.selectionStreakStartY {
+			field.cursorOffsetW = field.selectionStartW
 			field.cursorOffsetX = 0
 		} else {
+			field.cursorOffsetW = field.selectionEndW
 			line := field.lines[field.cursorOffsetY]
 			field.cursorOffsetX = iaStringWidth(line)
 		}
