@@ -55,6 +55,9 @@ type InputArea struct {
 
 	// Whether or not to enable vim-style keybindings.
 	vimBindings bool
+	// Whether or not text should be automatically copied to the primary clipboard when selected.
+	// Most apps on Linux work this way.
+	copySelection bool
 
 	// Whether or not the input area is focused.
 	focused bool
@@ -104,8 +107,9 @@ func NewInputArea() *InputArea {
 		selectionTextColor:       Styles.PrimaryTextColor,
 		selectionBackgroundColor: Styles.ContrastBackgroundColor,
 
-		vimBindings: false,
-		focused:     false,
+		vimBindings:   false,
+		copySelection: true,
+		focused:       false,
 
 		selectionEndW:   -1,
 		selectionStartW: -1,
@@ -524,6 +528,7 @@ func (field *InputArea) extendSelection(diff int) {
 	if field.selectionStartW > field.selectionEndW {
 		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
 	}
+	field.copy("primary")
 }
 
 // MoveCursorUp moves the cursor up one line.
@@ -628,6 +633,8 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 	field.cursorOffsetY = y
 	if field.cursorOffsetY > len(field.lines) {
 		field.cursorOffsetY = len(field.lines) - 1
+	} else if len(field.lines) == 0 {
+		return
 	}
 	line := field.lines[field.cursorOffsetY]
 	fullLine := (field.clickStreak-2)%2 == 1
@@ -654,6 +661,7 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 	}
 
 	field.selectionStreakStartY = field.cursorOffsetY
+	field.copy("primary")
 }
 
 // ExtendSelection extends the selection as if the user dragged their mouse to the given coordinates.
@@ -715,6 +723,7 @@ func (field *InputArea) ExtendSelection(x, y int) {
 	if field.selectionStartW > field.selectionEndW {
 		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
 	}
+	field.copy("primary")
 }
 
 // RemoveNextCharacter removes the character after the cursor.
@@ -791,6 +800,7 @@ func (field *InputArea) SelectAll() {
 	field.selectionStartW = 0
 	field.selectionEndW = iaStringWidth(field.text)
 	field.cursorOffsetW = field.selectionEndW
+	field.copy("primary")
 }
 
 // handleInputChanges calls the text change handler and makes sure
@@ -848,13 +858,19 @@ func (field *InputArea) Paste() {
 
 // Copy copies the currently selected content onto the clipboard.
 func (field *InputArea) Copy() {
-	if field.selectionEndW == -1 {
+	field.copy("clipboard")
+}
+
+func (field *InputArea) copy(selection string) {
+	if !field.copySelection && selection == "primary" {
+		return
+	} else if field.selectionEndW == -1 {
 		return
 	}
 	left := iaSubstringBefore(field.text, field.selectionStartW)
 	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
 	text := rightLeft[len(left):]
-	_ = clipboard.WriteAll("clipboard", text)
+	_ = clipboard.WriteAll(text, selection)
 }
 
 // OnKeyEvent handles a terminal key press event.
@@ -944,8 +960,8 @@ func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 		cursorX, cursorY := event.Position()
 		cursorY += field.viewOffsetY
 		now := millis()
+		sameCell := field.lastClickX == cursorX && field.lastClickY == cursorY
 		if !event.HasMotion() {
-			sameCell := field.lastClickX == cursorX && field.lastClickY == cursorY
 			withinTimeout := now < field.lastClick+field.doubleClickTimeout
 			if field.clickStreak > 0 && sameCell && withinTimeout {
 				field.clickStreak++
@@ -957,12 +973,15 @@ func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 			} else {
 				field.startSelectionStreak(cursorX, cursorY)
 			}
+			field.lastClick = now
+			field.lastClickX = cursorX
+			field.lastClickY = cursorY
 		} else {
+			if sameCell {
+				return false
+			}
 			field.ExtendSelection(cursorX, cursorY)
 		}
-		field.lastClick = now
-		field.lastClickX = cursorX
-		field.lastClickY = cursorY
 	case tcell.WheelDown:
 		field.viewOffsetY += 3
 		field.cursorOffsetY += 3
