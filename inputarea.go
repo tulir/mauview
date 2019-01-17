@@ -27,7 +27,7 @@ type InputArea struct {
 	cursorOffsetX int
 	// Cursor offset from the top of the text.
 	cursorOffsetY int
-	// Number of lines to offset rendering.
+	// Number of lines (from top) to offset rendering.
 	viewOffsetY int
 
 	// The start of the selection as the runewidth from the start of the input area text.
@@ -85,8 +85,10 @@ type InputArea struct {
 	// Maximum delay (ms) between clicks to count as a double click.
 	doubleClickTimeout int64
 
+	// The previous word start and end X position that the mouse was dragged over when selecting words at a time.
+	// Used to detect if the mouse is still over the same word.
 	lastWordSelectionExtendXStart int
-	lastWordSelectionExtendXEnd int
+	lastWordSelectionExtendXEnd   int
 }
 
 // NewInputArea returns a new input field.
@@ -195,6 +197,7 @@ func millis() int64 {
 	return time.Now().UnixNano() / 1e6
 }
 
+// Snapshot saves the current editor state into undo history.
 func (field *InputArea) snapshot() {
 	cur := field.history[field.historyPtr]
 	now := millis()
@@ -242,6 +245,7 @@ func (field *InputArea) Undo() {
 	field.cursorOffsetW = newCur.cursorOffsetW
 }
 
+// recalculateCursorOffset recalculates the runewidth cursor offset based on the X and Y cursor offsets.
 func (field *InputArea) recalculateCursorOffset() {
 	cursorOffsetW := 0
 	for i, str := range field.lines {
@@ -270,6 +274,7 @@ func (field *InputArea) recalculateCursorOffset() {
 	}
 }
 
+// recalculateCursorPos recalculates the X and Y cursor offsets based on the runewidth cursor offset.
 func (field *InputArea) recalculateCursorPos() {
 	cursorOffsetY := 0
 	cursorOffsetX := field.cursorOffsetW
@@ -297,6 +302,7 @@ func matchBoundaryPattern(extract string) string {
 	return extract
 }
 
+// prepareText splits the text into lines that fit the input area.
 func (field *InputArea) prepareText(width int) {
 	var lines []string
 	if len(field.text) == 0 {
@@ -322,6 +328,10 @@ func (field *InputArea) prepareText(width int) {
 	field.lines = lines
 }
 
+// updateViewOffset updates the view offset so that:
+//   * it is not negative
+//   * it is not unnecessarily high
+//   * the cursor is within the rendered area
 func (field *InputArea) updateViewOffset(height int) {
 	if field.viewOffsetY < 0 {
 		field.viewOffsetY = 0
@@ -421,13 +431,31 @@ func iaSubstringBefore(s string, w int) string {
 	return string(r[0:i]) // + tail
 }
 
+// TypeRune inserts the given rune at the current cursor position.
 func (field *InputArea) TypeRune(ch rune) {
-	left := iaSubstringBefore(field.text, field.cursorOffsetW)
-	right := field.text[len(left):]
+	var left, right string
+	if field.selectionEndW != -1 {
+		left = iaSubstringBefore(field.text, field.selectionStartW)
+		rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
+		right = field.text[len(rightLeft):]
+		field.cursorOffsetW = field.selectionStartW
+	} else {
+		left = iaSubstringBefore(field.text, field.cursorOffsetW)
+		right = field.text[len(left):]
+	}
 	field.text = left + string(ch) + right
 	field.cursorOffsetW += iaRuneWidth(ch)
+	field.selectionEndW = -1
+	field.selectionStartW = -1
 }
 
+// MoveCursorLeft moves the cursor left.
+//
+// If moveWord is true, the cursor moves a whole word to the left.
+//
+// If extendSelection is true, the selection is either extended to the left if the cursor is on the left side of the
+// selection or retracted from the right if the cursor is on the right side. If there is no existing selection, the
+// selection will be created towards the left of the cursor.
 func (field *InputArea) MoveCursorLeft(moveWord, extendSelection bool) {
 	before := iaSubstringBefore(field.text, field.cursorOffsetW)
 	var diff int
@@ -445,6 +473,13 @@ func (field *InputArea) MoveCursorLeft(moveWord, extendSelection bool) {
 	}
 }
 
+// MoveCursorLeft moves the cursor right.
+//
+// If moveWord is true, the cursor moves a whole word to the right.
+//
+// If extendSelection is true, the selection is either extended to the right if the cursor is on the right side of the
+// selection or retracted from the left if the cursor is on the left side. If there is no existing selection, the
+// selection will be created towards the right of the cursor.
 func (field *InputArea) MoveCursorRight(moveWord, extendSelection bool) {
 	before := iaSubstringBefore(field.text, field.cursorOffsetW)
 	after := field.text[len(before):]
@@ -462,12 +497,16 @@ func (field *InputArea) MoveCursorRight(moveWord, extendSelection bool) {
 	}
 }
 
+// moveCursor resets the selection and adjusts the runewidth cursor offset.
 func (field *InputArea) moveCursor(diff int) {
 	field.selectionEndW = -1
 	field.selectionStartW = -1
 	field.cursorOffsetW += diff
 }
 
+// extendSelection adjusts the selection or creates a selection. Negative values make the selection go left and
+// positive values make the selection go right.
+// "Go" in context of a selection means retracting or extending depending on which side the cursor is on.
 func (field *InputArea) extendSelection(diff int) {
 	if field.selectionEndW == -1 {
 		field.selectionStartW = field.cursorOffsetW
@@ -483,6 +522,10 @@ func (field *InputArea) extendSelection(diff int) {
 	}
 }
 
+// MoveCursorUp moves the cursor up one line.
+//
+// If extendSelection is true, the selection is either extended up if the cursor is at the beginning of the selection or
+// retracted from the bottom if the cursor is at the end of the selection.
 func (field *InputArea) MoveCursorUp(extendSelection bool) {
 	pX, pY := field.cursorOffsetX, field.cursorOffsetY
 	if field.cursorOffsetY > 0 {
@@ -506,6 +549,10 @@ func (field *InputArea) MoveCursorUp(extendSelection bool) {
 	field.recalculateCursorOffset()
 }
 
+// MoveCursorDown moves the cursor down one line.
+//
+// If extendSelection is true, the selection is either extended down if the cursor is at the end of the selection or
+// retracted from the top if the cursor is at the beginning of the selection.
 func (field *InputArea) MoveCursorDown(extendSelection bool) {
 	pX, pY := field.cursorOffsetX, field.cursorOffsetY
 	if field.cursorOffsetY < len(field.lines)-1 {
@@ -530,6 +577,7 @@ func (field *InputArea) MoveCursorDown(extendSelection bool) {
 	field.recalculateCursorOffset()
 }
 
+// SetCursorPos sets the X and Y cursor offsets.
 func (field *InputArea) SetCursorPos(x, y int) {
 	field.cursorOffsetX = x
 	field.cursorOffsetY = y
@@ -541,7 +589,17 @@ func (field *InputArea) SetCursorPos(x, y int) {
 	field.recalculateCursorOffset()
 }
 
-func (field *InputArea) findWordAt(line string, x int) (beforePos, afterPos int) {
+// SetCursorOffset sets the runewidth cursor offset.
+func (field *InputArea) SetCursorOffset(offset int) {
+	field.cursorOffsetW = offset
+	field.selectionStartW = -1
+	field.selectionEndW = -1
+}
+
+// findWordAt finds the word around the given runewidth offset in the given string.
+//
+// Returns the start and end index of the word.
+func findWordAt(line string, x int) (beforePos, afterPos int) {
 	before := iaSubstringBefore(line, x)
 	after := line[len(before):]
 	afterBound := boundaryPattern.FindStringIndex(after)
@@ -561,6 +619,7 @@ func (field *InputArea) findWordAt(line string, x int) (beforePos, afterPos int)
 	return
 }
 
+// startSelectionStreak selects the current word or line for double and triple clicks (respectively).
 func (field *InputArea) startSelectionStreak(x, y int) {
 	field.cursorOffsetY = y
 	if field.cursorOffsetY > len(field.lines) {
@@ -574,7 +633,7 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 		field.selectionStartW = field.cursorOffsetW - field.cursorOffsetX
 		field.selectionEndW = field.cursorOffsetW
 	} else {
-		beforePos, afterPos := field.findWordAt(line, x)
+		beforePos, afterPos := findWordAt(line, x)
 		field.cursorOffsetX = iaStringWidth(line[:afterPos])
 		field.recalculateCursorOffset()
 		field.selectionStartW = field.cursorOffsetW - iaStringWidth(line[beforePos:afterPos])
@@ -582,6 +641,7 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 	}
 }
 
+// ExtendSelection extends the selection as if the user dragged their mouse to the given coordinates.
 func (field *InputArea) ExtendSelection(x, y int) {
 	field.cursorOffsetY = y
 	if field.cursorOffsetY > len(field.lines) {
@@ -594,7 +654,7 @@ func (field *InputArea) ExtendSelection(x, y int) {
 			return
 		}
 		line := field.lines[field.cursorOffsetY]
-		beforePos, afterPos := field.findWordAt(line, x)
+		beforePos, afterPos := findWordAt(line, x)
 		field.lastWordSelectionExtendXStart = beforePos
 		field.lastWordSelectionExtendXEnd = afterPos
 		if field.cursorOffsetW == field.selectionStartW {
@@ -628,6 +688,7 @@ func (field *InputArea) ExtendSelection(x, y int) {
 	}
 }
 
+// RemoveNextCharacter removes the character after the cursor.
 func (field *InputArea) RemoveNextCharacter() {
 	if field.selectionEndW > 0 {
 		field.RemoveSelection()
@@ -642,6 +703,7 @@ func (field *InputArea) RemoveNextCharacter() {
 	field.text = left + right
 }
 
+// RemovePreviousWord removes the word before the cursor.
 func (field *InputArea) RemovePreviousWord() {
 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
 	replacement := lastWord.ReplaceAllString(left, "")
@@ -649,6 +711,7 @@ func (field *InputArea) RemovePreviousWord() {
 	field.cursorOffsetW = iaStringWidth(replacement)
 }
 
+// RemoveSelection removes the selected content.
 func (field *InputArea) RemoveSelection() {
 	leftLeft := iaSubstringBefore(field.text, field.selectionStartW)
 	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
@@ -661,6 +724,7 @@ func (field *InputArea) RemoveSelection() {
 	field.selectionStartW = -1
 }
 
+// RemovePreviousCharacter removes the character before the cursor.
 func (field *InputArea) RemovePreviousCharacter() {
 	if field.selectionEndW > 0 {
 		field.RemoveSelection()
@@ -682,6 +746,7 @@ func (field *InputArea) RemovePreviousCharacter() {
 	field.cursorOffsetW -= iaStringWidth(removedChar)
 }
 
+// Clear clears the input area.
 func (field *InputArea) Clear() {
 	field.text = ""
 	field.cursorOffsetW = 0
@@ -692,12 +757,15 @@ func (field *InputArea) Clear() {
 	field.viewOffsetY = 0
 }
 
+// SelectAll extends the selection to cover all text in the input area.
 func (field *InputArea) SelectAll() {
 	field.selectionStartW = 0
 	field.selectionEndW = iaStringWidth(field.text)
 	field.cursorOffsetW = field.selectionEndW
 }
 
+// handleInputChanges calls the text change handler and makes sure
+// offsets are valid after a change in the text of the input area.
 func (field *InputArea) handleInputChanges(originalText string) {
 	// Trigger changed events.
 	if field.text != originalText && field.changed != nil {
@@ -721,6 +789,7 @@ func (field *InputArea) handleInputChanges(originalText string) {
 	}
 }
 
+// OnPasteEvent handles a terminal bracketed paste event.
 func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 	var left, right string
 	if field.selectionEndW != -1 {
@@ -742,11 +811,13 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 	return true
 }
 
+// Paste reads the clipboard and inserts the content at the cursor position.
 func (field *InputArea) Paste() {
 	text, _ := clipboard.ReadAll("clipboard")
 	field.OnPasteEvent(tcell.NewEventPaste(text))
 }
 
+// Copy copies the currently selected content onto the clipboard.
 func (field *InputArea) Copy() {
 	if field.selectionEndW == -1 {
 		return
@@ -757,6 +828,7 @@ func (field *InputArea) Copy() {
 	_ = clipboard.WriteAll("clipboard", text)
 }
 
+// OnKeyEvent handles a terminal key press event.
 func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	hasMod := func(mod tcell.ModMask) bool {
 		return event.Modifiers()&mod != 0
@@ -813,6 +885,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 				field.Copy()
 			case tcell.KeyCtrlV:
 				field.Paste()
+				return true
 			default:
 				return false
 			}
@@ -825,14 +898,17 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	return true
 }
 
+// Focus marks the input area as focused.
 func (field *InputArea) Focus() {
 	field.focused = true
 }
 
+// Blur marks the input area as not focused.
 func (field *InputArea) Blur() {
 	field.focused = false
 }
 
+// OnMouseEvent handles a terminal mouse event.
 func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 	switch event.Buttons() {
 	case tcell.Button1:

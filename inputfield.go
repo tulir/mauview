@@ -26,7 +26,8 @@ import (
 type InputField struct {
 	// Cursor position
 	cursorOffset int
-	viewOffset   int
+	// Number of characters (from left) to offset rendering.
+	viewOffset int
 
 	// The text that was entered.
 	text string
@@ -36,10 +37,8 @@ type InputField struct {
 
 	// The background color of the input area.
 	fieldBackgroundColor tcell.Color
-
 	// The text color of the input area.
 	fieldTextColor tcell.Color
-
 	// The text color of the placeholder.
 	placeholderTextColor tcell.Color
 
@@ -50,6 +49,7 @@ type InputField struct {
 	// Whether or not to enable vim-style keybindings.
 	vimBindings bool
 
+	// Whether or not the input field is focused.
 	focused bool
 
 	// An optional function which is called when the input has changed.
@@ -389,9 +389,9 @@ func (field *InputField) Blur() {
 
 func (field *InputField) OnMouseEvent(event MouseEvent) bool {
 	if event.Buttons() == tcell.Button1 {
-	x, _ := event.Position()
-	field.SetCursorOffset(field.viewOffset + x)
-	return true
+		x, _ := event.Position()
+		field.SetCursorOffset(field.viewOffset + x)
+		return true
 	}
 	return false
 }
