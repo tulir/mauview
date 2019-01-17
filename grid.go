@@ -12,32 +12,11 @@ import (
 )
 
 type gridChild struct {
-	screen    *ProxyScreen
+	genericChild
 	relWidth  int
 	relHeight int
 	relX      int
 	relY      int
-	target    Component
-}
-
-func (child gridChild) Within(x, y int) bool {
-	screen := child.screen
-	return x >= screen.offsetX && x < screen.offsetX+screen.width &&
-		y >= screen.offsetY && y < screen.offsetY+screen.height
-}
-
-func (child gridChild) Focus() {
-	focusable, ok := child.target.(Focusable)
-	if ok {
-		focusable.Focus()
-	}
-}
-
-func (child gridChild) Blur() {
-	focusable, ok := child.target.(Focusable)
-	if ok {
-		focusable.Blur()
-	}
 }
 
 type Grid struct {
@@ -45,34 +24,49 @@ type Grid struct {
 	children []gridChild
 	focused  *gridChild
 
-	relWidth, relHeight         int
-	prevAbsWidth, prevAbsHeight int
+	prevWidth  int
+	prevHeight int
 
 	columnWidths []int
 	rowHeights   []int
 }
 
-func NewGrid(width, height int) *Grid {
+func NewGrid() *Grid {
 	return &Grid{
-		children:      []gridChild{},
-		focused:       nil,
-		relWidth:      width,
-		relHeight:     height,
-		prevAbsWidth:  -1,
-		prevAbsHeight: -1,
-		columnWidths:  make([]int, width),
-		rowHeights:    make([]int, height),
+		children:     []gridChild{},
+		focused:      nil,
+		prevWidth:    -1,
+		prevHeight:   -1,
+		columnWidths: []int{-1},
+		rowHeights:   []int{-1},
 	}
 }
 
+func extend(arr []int, newSize int) []int {
+	newArr := make([]int, newSize)
+	copy(newArr, arr)
+	for i := len(arr); i < len(newArr); i++ {
+		newArr[i] = -1
+	}
+	return newArr
+}
+
 func (grid *Grid) AddComponent(comp Component, x, y, width, height int) *Grid {
+	if x+width >= len(grid.columnWidths) {
+		grid.columnWidths = extend(grid.columnWidths, x+width)
+	}
+	if y+height >= len(grid.rowHeights) {
+		grid.rowHeights = extend(grid.rowHeights, y+height)
+	}
 	grid.children = append(grid.children, gridChild{
-		screen:    &ProxyScreen{parent: grid.screen, style: tcell.StyleDefault},
+		genericChild: genericChild{
+			screen: &ProxyScreen{parent: grid.screen, style: tcell.StyleDefault},
+			target: comp,
+		},
 		relWidth:  width,
 		relHeight: height,
 		relX:      x,
 		relY:      y,
-		target:    comp,
 	})
 	return grid
 }
@@ -86,24 +80,39 @@ func (grid *Grid) RemoveComponent(comp Component) *Grid {
 	return grid
 }
 
-func (grid *Grid) SetColumnWidth(col, width int) {
+func (grid *Grid) SetColumn(col, width int) {
+	if col >= len(grid.columnWidths) {
+		grid.columnWidths = extend(grid.columnWidths, col+1)
+	}
 	grid.columnWidths[col] = width
 }
 
-func (grid *Grid) SetRowHeight(row, height int) {
+func (grid *Grid) SetRow(row, height int) {
+	if row >= len(grid.rowHeights) {
+		grid.rowHeights = extend(grid.rowHeights, row+1)
+	}
 	grid.rowHeights[row] = height
 }
 
-func sum(arr []int) (int, int) {
-	sum := 0
-	n := 0
+func (grid *Grid) SetColumns(columns []int) {
+	grid.columnWidths = columns
+}
+
+func (grid *Grid) SetRows(rows []int) {
+	grid.rowHeights = rows
+}
+
+func pnSum(arr []int) (int, int) {
+	positive := 0
+	negative := 0
 	for _, i := range arr {
-		sum += i
-		if i <= 0 {
-			n++
+		if i < 0 {
+			negative -= i
+		} else {
+			positive += i
 		}
 	}
-	return sum, n
+	return positive, negative
 }
 
 func fillDynamic(arr []int, size, dynamicItems int) []int {
@@ -114,12 +123,11 @@ func fillDynamic(arr []int, size, dynamicItems int) []int {
 	remainder := size % dynamicItems
 	newArr := make([]int, len(arr))
 	for i, val := range arr {
-		if val == 0 {
+		if val < 0 {
+			newArr[i] = part * -val
 			if remainder > 0 {
 				remainder--
-				newArr[i] = part + 1
-			} else {
-				newArr[i] = part
+				newArr[i]++
 			}
 		} else {
 			newArr[i] = val
@@ -129,22 +137,22 @@ func fillDynamic(arr []int, size, dynamicItems int) []int {
 }
 
 func (grid *Grid) OnResize(width, height int) {
-	absColWidth, dynamicColumns := sum(grid.columnWidths)
+	absColWidth, dynamicColumns := pnSum(grid.columnWidths)
 	columnWidths := fillDynamic(grid.columnWidths, width-absColWidth, dynamicColumns)
-	absRowHeight, dynamicRows := sum(grid.rowHeights)
+	absRowHeight, dynamicRows := pnSum(grid.rowHeights)
 	rowHeights := fillDynamic(grid.rowHeights, height-absRowHeight, dynamicRows)
 	for _, child := range grid.children {
-		child.screen.offsetX, _ = sum(columnWidths[:child.relX])
-		child.screen.offsetY, _ = sum(rowHeights[:child.relY])
-		child.screen.width, _ = sum(columnWidths[child.relX : child.relX+child.relWidth])
-		child.screen.height, _ = sum(rowHeights[child.relY : child.relY+child.relHeight])
+		child.screen.offsetX, _ = pnSum(columnWidths[:child.relX])
+		child.screen.offsetY, _ = pnSum(rowHeights[:child.relY])
+		child.screen.width, _ = pnSum(columnWidths[child.relX : child.relX+child.relWidth])
+		child.screen.height, _ = pnSum(rowHeights[child.relY : child.relY+child.relHeight])
 	}
-	grid.prevAbsWidth, grid.prevAbsHeight = width, height
+	grid.prevWidth, grid.prevHeight = width, height
 }
 
 func (grid *Grid) Draw(screen Screen) {
 	width, height := screen.Size()
-	if grid.prevAbsWidth != width || grid.prevAbsHeight != height {
+	if grid.prevWidth != width || grid.prevHeight != height {
 		grid.OnResize(screen.Size())
 	}
 	screen.Clear()

@@ -175,16 +175,18 @@ func (field *InputField) drawText(screen Screen, text string) {
 	width, _ := screen.Size()
 	runes := []rune(text)
 	x := 0
+	style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
 	for pos := field.viewOffset; pos <= width+field.viewOffset && pos < len(runes); pos++ {
 		ch := runes[pos]
 		w := runewidth.RuneWidth(ch)
-		_, _, style, _ := screen.GetContent(x, 0)
-		style = style.Foreground(field.fieldTextColor)
 		for w > 0 {
 			screen.SetContent(x, 0, ch, nil, style)
 			x++
 			w--
 		}
+	}
+	for ; x <= width; x++ {
+		screen.SetContent(x, 0, ' ', nil, style)
 	}
 }
 
@@ -195,8 +197,6 @@ func (field *InputField) Draw(screen Screen) {
 		return
 	}
 
-	screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
-	screen.Clear()
 	text := field.prepareText(screen)
 	field.drawText(screen, text)
 	if field.focused {

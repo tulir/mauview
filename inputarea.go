@@ -362,6 +362,7 @@ func (field *InputArea) drawText(screen Screen) {
 		}
 		return
 	}
+	style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
 	rwOffset := 0
 	for y := 0; y <= field.viewOffsetY+height && y < len(field.lines); y++ {
 		if y < field.viewOffsetY {
@@ -371,7 +372,6 @@ func (field *InputArea) drawText(screen Screen) {
 		x := 0
 		for _, ch := range []rune(field.lines[y]) {
 			w := iaRuneWidth(ch)
-			style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
 			if rwOffset >= field.selectionStartW && rwOffset < field.selectionEndW {
 				style = style.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
 			}
