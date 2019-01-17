@@ -10,6 +10,7 @@
 package mauview
 
 import (
+	"github.com/zyedidia/clipboard"
 	"strings"
 	"time"
 
@@ -73,6 +74,19 @@ type InputArea struct {
 	historyMaxEditDelay int64
 	// Maximum age (ms) of the previous snapshot to edit the previous snapshot instead of craeting a new one.
 	historyMaxSnapshotAge int64
+
+	// Timestamp of the last click used for detecting double clicks.
+	lastClick int64
+	// Position of the last click used for detecting double clicks.
+	lastClickX int
+	lastClickY int
+	// Number of clicks done within doubleClickTimeout of eachother.
+	clickStreak int
+	// Maximum delay (ms) between clicks to count as a double click.
+	doubleClickTimeout int64
+
+	lastWordSelectionExtendXStart int
+	lastWordSelectionExtendXEnd int
 }
 
 // NewInputArea returns a new input field.
@@ -96,6 +110,9 @@ func NewInputArea() *InputArea {
 		historyMaxSize:        256,
 		historyMaxEditDelay:   1 * 1000,
 		historyMaxSnapshotAge: 3 * 1000,
+
+		lastClick:          0,
+		doubleClickTimeout: 1 * 500,
 	}
 }
 
@@ -224,17 +241,6 @@ func (field *InputArea) Undo() {
 	field.text = newCur.text
 	field.cursorOffsetW = newCur.cursorOffsetW
 }
-func matchBoundaryPattern(extract string) string {
-	matches := boundaryPattern.FindAllStringIndex(extract, -1)
-	if len(matches) > 0 {
-		if match := matches[len(matches)-1]; len(match) >= 2 {
-			if until := match[1]; until < len(extract) {
-				extract = extract[:until]
-			}
-		}
-	}
-	return extract
-}
 
 func (field *InputArea) recalculateCursorOffset() {
 	cursorOffsetW := 0
@@ -277,6 +283,18 @@ func (field *InputArea) recalculateCursorPos() {
 	}
 	field.cursorOffsetX = cursorOffsetX
 	field.cursorOffsetY = cursorOffsetY
+}
+
+func matchBoundaryPattern(extract string) string {
+	matches := boundaryPattern.FindAllStringIndex(extract, -1)
+	if len(matches) > 0 {
+		if match := matches[len(matches)-1]; len(match) >= 2 {
+			if until := match[1]; until < len(extract) {
+				extract = extract[:until]
+			}
+		}
+	}
+	return extract
 }
 
 func (field *InputArea) prepareText(width int) {
@@ -512,29 +530,101 @@ func (field *InputArea) MoveCursorDown(extendSelection bool) {
 	field.recalculateCursorOffset()
 }
 
-func (field *InputArea) MoveCursorPos(x, y int, moveSelection bool) {
+func (field *InputArea) SetCursorPos(x, y int) {
 	field.cursorOffsetX = x
+	field.cursorOffsetY = y
+	field.selectionStartW = -1
+	field.selectionEndW = -1
+	if field.cursorOffsetY > len(field.lines) {
+		field.cursorOffsetY = len(field.lines) - 1
+	}
+	field.recalculateCursorOffset()
+}
+
+func (field *InputArea) findWordAt(line string, x int) (beforePos, afterPos int) {
+	before := iaSubstringBefore(line, x)
+	after := line[len(before):]
+	afterBound := boundaryPattern.FindStringIndex(after)
+	if afterBound != nil {
+		afterPos = afterBound[0]
+	} else {
+		afterPos = len(after)
+	}
+	afterPos += len(before)
+	beforeBounds := boundaryPattern.FindAllStringIndex(before, -1)
+	if len(beforeBounds) > 0 {
+		beforeBound := beforeBounds[len(beforeBounds)-1]
+		beforePos = beforeBound[1]
+	} else {
+		beforePos = 0
+	}
+	return
+}
+
+func (field *InputArea) startSelectionStreak(x, y int) {
 	field.cursorOffsetY = y
 	if field.cursorOffsetY > len(field.lines) {
 		field.cursorOffsetY = len(field.lines) - 1
 	}
-	prevOffset := field.cursorOffsetW
-	field.recalculateCursorOffset()
-	if moveSelection {
-		if field.selectionEndW == -1 {
-			field.selectionStartW = prevOffset
-			field.selectionEndW = field.cursorOffsetW
-		} else if prevOffset == field.selectionEndW {
-			field.selectionEndW = field.cursorOffsetW
-		} else {
-			field.selectionStartW = field.cursorOffsetW
+	line := field.lines[field.cursorOffsetY]
+	fullLine := (field.clickStreak-2)%2 == 1
+	if fullLine {
+		field.cursorOffsetX = iaStringWidth(line)
+		field.recalculateCursorOffset()
+		field.selectionStartW = field.cursorOffsetW - field.cursorOffsetX
+		field.selectionEndW = field.cursorOffsetW
+	} else {
+		beforePos, afterPos := field.findWordAt(line, x)
+		field.cursorOffsetX = iaStringWidth(line[:afterPos])
+		field.recalculateCursorOffset()
+		field.selectionStartW = field.cursorOffsetW - iaStringWidth(line[beforePos:afterPos])
+		field.selectionEndW = field.cursorOffsetW
+	}
+}
+
+func (field *InputArea) ExtendSelection(x, y int) {
+	field.cursorOffsetY = y
+	if field.cursorOffsetY > len(field.lines) {
+		field.cursorOffsetY = len(field.lines) - 1
+	}
+	if field.clickStreak <= 1 {
+		field.cursorOffsetX = x
+	} else if (field.clickStreak-2)%2 == 0 {
+		if field.lastClickY == y && x >= field.lastWordSelectionExtendXStart && x <= field.lastWordSelectionExtendXEnd {
+			return
 		}
-		if field.selectionStartW > field.selectionEndW {
-			field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
+		line := field.lines[field.cursorOffsetY]
+		beforePos, afterPos := field.findWordAt(line, x)
+		field.lastWordSelectionExtendXStart = beforePos
+		field.lastWordSelectionExtendXEnd = afterPos
+		if field.cursorOffsetW == field.selectionStartW {
+			field.cursorOffsetX = iaStringWidth(line[:beforePos])
+		} else {
+			field.cursorOffsetX = iaStringWidth(line[:afterPos])
 		}
 	} else {
-		field.selectionStartW = -1
-		field.selectionEndW = -1
+		if field.lastClickY == y {
+			return
+		}
+		if field.cursorOffsetW == field.selectionStartW {
+			field.cursorOffsetX = 0
+		} else {
+			line := field.lines[field.cursorOffsetY]
+			field.cursorOffsetX = iaStringWidth(line)
+		}
+	}
+	prevOffset := field.cursorOffsetW
+	field.recalculateCursorOffset()
+	if field.selectionEndW == -1 {
+		field.selectionStartW = prevOffset
+		field.selectionEndW = field.cursorOffsetW
+	} else if prevOffset == field.selectionEndW {
+		field.selectionEndW = field.cursorOffsetW
+	} else {
+		field.selectionStartW = field.cursorOffsetW
+	}
+	if field.selectionStartW > field.selectionEndW {
+		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
 	}
 }
 
@@ -632,14 +722,39 @@ func (field *InputArea) handleInputChanges(originalText string) {
 }
 
 func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
-	left := iaSubstringBefore(field.text, field.cursorOffsetW)
-	right := field.text[len(left):]
+	var left, right string
+	if field.selectionEndW != -1 {
+		left = iaSubstringBefore(field.text, field.selectionStartW)
+		rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
+		right = field.text[len(rightLeft):]
+		field.cursorOffsetW = field.selectionStartW
+	} else {
+		left = iaSubstringBefore(field.text, field.cursorOffsetW)
+		right = field.text[len(left):]
+	}
 	oldText := field.text
 	field.text = left + event.Text() + right
 	field.cursorOffsetW += iaStringWidth(event.Text())
 	field.handleInputChanges(oldText)
+	field.selectionEndW = -1
+	field.selectionStartW = -1
 	field.snapshot()
 	return true
+}
+
+func (field *InputArea) Paste() {
+	text, _ := clipboard.ReadAll("clipboard")
+	field.OnPasteEvent(tcell.NewEventPaste(text))
+}
+
+func (field *InputArea) Copy() {
+	if field.selectionEndW == -1 {
+		return
+	}
+	left := iaSubstringBefore(field.text, field.selectionStartW)
+	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
+	text := rightLeft[len(left):]
+	_ = clipboard.WriteAll("clipboard", text)
 }
 
 func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
@@ -650,7 +765,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 
 	doSnapshot := false
 	// Process key event.
-	switch key := event.Key(); key {
+	switch event.Key() {
 	case tcell.KeyRune:
 		field.TypeRune(event.Rune())
 		doSnapshot = true
@@ -668,28 +783,6 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
 		doSnapshot = true
-	case tcell.KeyCtrlU:
-		if field.vimBindings {
-			field.Clear()
-			doSnapshot = true
-		}
-	case tcell.KeyCtrlW:
-		if field.vimBindings {
-			field.RemovePreviousWord()
-			doSnapshot = true
-		}
-	case tcell.KeyCtrlA:
-		if !field.vimBindings {
-			field.SelectAll()
-		}
-	case tcell.KeyCtrlZ:
-		if !field.vimBindings {
-			field.Undo()
-		}
-	case tcell.KeyCtrlY:
-		if !field.vimBindings {
-			field.Redo()
-		}
 	case tcell.KeyBackspace:
 		field.RemovePreviousWord()
 		doSnapshot = true
@@ -697,7 +790,33 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		field.RemovePreviousCharacter()
 		doSnapshot = true
 	default:
-		return false
+		if field.vimBindings {
+			switch event.Key() {
+			case tcell.KeyCtrlU:
+				field.Clear()
+				doSnapshot = true
+			case tcell.KeyCtrlW:
+				field.RemovePreviousWord()
+				doSnapshot = true
+			default:
+				return false
+			}
+		} else {
+			switch event.Key() {
+			case tcell.KeyCtrlA:
+				field.SelectAll()
+			case tcell.KeyCtrlZ:
+				field.Undo()
+			case tcell.KeyCtrlY:
+				field.Redo()
+			case tcell.KeyCtrlC:
+				field.Copy()
+			case tcell.KeyCtrlV:
+				field.Paste()
+			default:
+				return false
+			}
+		}
 	}
 	field.handleInputChanges(oldText)
 	if doSnapshot {
@@ -718,7 +837,27 @@ func (field *InputArea) OnMouseEvent(event MouseEvent) bool {
 	switch event.Buttons() {
 	case tcell.Button1:
 		cursorX, cursorY := event.Position()
-		field.MoveCursorPos(cursorX, field.viewOffsetY+cursorY, event.HasMotion())
+		cursorY += field.viewOffsetY
+		now := millis()
+		if !event.HasMotion() {
+			sameCell := field.lastClickX == cursorX && field.lastClickY == cursorY
+			withinTimeout := now < field.lastClick+field.doubleClickTimeout
+			if field.clickStreak > 0 && sameCell && withinTimeout {
+				field.clickStreak++
+			} else {
+				field.clickStreak = 1
+			}
+			if field.clickStreak <= 1 {
+				field.SetCursorPos(cursorX, cursorY)
+			} else {
+				field.startSelectionStreak(cursorX, cursorY)
+			}
+		} else {
+			field.ExtendSelection(cursorX, cursorY)
+		}
+		field.lastClick = now
+		field.lastClickX = cursorX
+		field.lastClickY = cursorY
 	case tcell.WheelDown:
 		field.viewOffsetY += 3
 		field.cursorOffsetY += 3
