@@ -70,6 +70,20 @@ func (seh *SimpleEventHandler) OnMouseEvent(event MouseEvent) bool {
 	return false
 }
 
+type NoopEventHandler struct {}
+
+func (neh NoopEventHandler) OnKeyEvent(event KeyEvent) bool {
+	return false
+}
+
+func (neh NoopEventHandler) OnPasteEvent(event PasteEvent) bool {
+	return false
+}
+
+func (neh NoopEventHandler) OnMouseEvent(event MouseEvent) bool {
+	return false
+}
+
 type proxyEventMouse struct {
 	MouseEvent
 	x int

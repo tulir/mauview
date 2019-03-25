@@ -11,6 +11,8 @@ import (
 	"unicode"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
+
 	"maunium.net/go/tcell"
 )
 
@@ -196,7 +198,7 @@ func decomposeString(text string) (colorIndices [][]int, colors [][]string, esca
 	stripped = string(escapePattern.ReplaceAll(buf, []byte("[$1$2]")))
 
 	// Get the width of the stripped string.
-	width = runewidth.StringWidth(stripped)
+	width = StringWidth(stripped)
 
 	return
 }
@@ -383,11 +385,26 @@ func PrintSimple(screen Screen, text string, x, y int) {
 	Print(screen, text, x, y, math.MaxInt32, AlignLeft, Styles.PrimaryTextColor)
 }
 
-// StringWidth returns the width of the given string needed to print it on
+// TaggedStringWidth returns the width of the given string needed to print it on
 // screen. The text may contain color tags which are not counted.
-func StringWidth(text string) int {
+func TaggedStringWidth(text string) int {
 	_, _, _, _, width := decomposeString(text)
 	return width
+}
+
+func StringWidth(text string) (width int) {
+	g := uniseg.NewGraphemes(text)
+	for g.Next() {
+		var chWidth int
+		for _, r := range g.Runes() {
+			chWidth = runewidth.RuneWidth(r)
+			if chWidth > 0 {
+				break // Our best guess at this point is to use the width of the first non-zero-width rune.
+			}
+		}
+		width += chWidth
+	}
+	return
 }
 
 // WordWrap splits a text such that each resulting line does not exceed the
@@ -587,7 +604,7 @@ func iterateStringReverse(text string, callback func(main rune, comb []rune, tex
 	var screenWidth int
 	buffer := make([]rune, len(text)) // We fill this up from the back so it's forward again.
 	bufferPos := len(text)
-	stringWidth := runewidth.StringWidth(text)
+	stringWidth := StringWidth(text)
 	for index, r := range runesReverse {
 		// Put this rune into the buffer.
 		bufferPos--

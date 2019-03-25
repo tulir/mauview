@@ -12,12 +12,6 @@ type genericChild struct {
 	target    Component
 }
 
-func (child genericChild) Within(x, y int) bool {
-	screen := child.screen
-	return x >= screen.offsetX && x < screen.offsetX+screen.width &&
-		y >= screen.offsetY && y < screen.offsetY+screen.height
-}
-
 func (child genericChild) Focus() {
 	focusable, ok := child.target.(Focusable)
 	if ok {

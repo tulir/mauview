@@ -8,9 +8,10 @@
 package mauview
 
 import (
-	"github.com/zyedidia/clipboard"
 	"strings"
 	"time"
+
+	"github.com/zyedidia/clipboard"
 
 	"github.com/mattn/go-runewidth"
 
@@ -62,8 +63,13 @@ type InputArea struct {
 	// Whether or not the input area is focused.
 	focused bool
 
+	drawPrepared bool
+
 	// An optional function which is called when the input has changed.
 	changed func(text string)
+
+	// An optional function which is called when the user presses tab.
+	tabComplete func(text string, pos int)
 
 	// Change history for undo/redo functionality.
 	history []*inputAreaSnapshot
@@ -162,20 +168,20 @@ func (field *InputArea) SetPlaceholder(text string) *InputArea {
 	return field
 }
 
-// SetFieldBackgroundColor sets the background color of the input area.
-func (field *InputArea) SetFieldBackgroundColor(color tcell.Color) *InputArea {
+// SetBackgroundColor sets the background color of the input area.
+func (field *InputArea) SetBackgroundColor(color tcell.Color) *InputArea {
 	field.fieldBackgroundColor = color
 	return field
 }
 
-// SetFieldTextColor sets the text color of the input area.
-func (field *InputArea) SetFieldTextColor(color tcell.Color) *InputArea {
+// SetTextColor sets the text color of the input area.
+func (field *InputArea) SetTextColor(color tcell.Color) *InputArea {
 	field.fieldTextColor = color
 	return field
 }
 
-// SetPlaceholderExtColor sets the text color of placeholder text.
-func (field *InputArea) SetPlaceholderExtColor(color tcell.Color) *InputArea {
+// SetPlaceholderTextColor sets the text color of placeholder text.
+func (field *InputArea) SetPlaceholderTextColor(color tcell.Color) *InputArea {
 	field.placeholderTextColor = color
 	return field
 }
@@ -184,6 +190,11 @@ func (field *InputArea) SetPlaceholderExtColor(color tcell.Color) *InputArea {
 // field has changed. It receives the current text (after the change).
 func (field *InputArea) SetChangedFunc(handler func(text string)) *InputArea {
 	field.changed = handler
+	return field
+}
+
+func (field *InputArea) SetTabCompleteFunc(handler func(text string, cursorOffset int)) *InputArea {
+	field.tabComplete = handler
 	return field
 }
 
@@ -362,7 +373,8 @@ func (field *InputArea) drawText(screen Screen) {
 		}
 		return
 	}
-	style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
+	defaultStyle := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
+	highlightStyle := defaultStyle.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
 	rwOffset := 0
 	for y := 0; y <= field.viewOffsetY+height && y < len(field.lines); y++ {
 		if y < field.viewOffsetY {
@@ -372,8 +384,11 @@ func (field *InputArea) drawText(screen Screen) {
 		x := 0
 		for _, ch := range []rune(field.lines[y]) {
 			w := iaRuneWidth(ch)
+			var style tcell.Style
 			if rwOffset >= field.selectionStartW && rwOffset < field.selectionEndW {
-				style = style.Foreground(field.selectionTextColor).Background(field.selectionBackgroundColor)
+				style = highlightStyle
+			} else {
+				style = defaultStyle
 			}
 			rwOffset += w
 			for w > 0 {
@@ -385,6 +400,11 @@ func (field *InputArea) drawText(screen Screen) {
 	}
 }
 
+func (field *InputArea) PrepareDraw(width int) {
+	field.prepareText(width)
+	field.recalculateCursorPos()
+}
+
 // Draw draws this primitive onto the screen.
 func (field *InputArea) Draw(screen Screen) {
 	width, height := screen.Size()
@@ -392,15 +412,17 @@ func (field *InputArea) Draw(screen Screen) {
 		return
 	}
 
+	if !field.drawPrepared {
+		field.PrepareDraw(width)
+	}
+	field.updateViewOffset(height)
 	screen.SetStyle(tcell.StyleDefault.Background(field.fieldBackgroundColor))
 	screen.Clear()
-	field.prepareText(width)
-	field.recalculateCursorPos()
-	field.updateViewOffset(height)
 	field.drawText(screen)
 	if field.focused && field.selectionEndW == -1 {
 		screen.ShowCursor(field.cursorOffsetX, field.cursorOffsetY-field.viewOffsetY)
 	}
+	field.drawPrepared = false
 }
 
 func iaRuneWidth(ch rune) int {
@@ -411,7 +433,7 @@ func iaRuneWidth(ch rune) int {
 }
 
 func iaStringWidth(s string) (width int) {
-	w := runewidth.StringWidth(s)
+	w := StringWidth(s)
 	for _, ch := range s {
 		if ch == '\n' {
 			w++
@@ -598,9 +620,37 @@ func (field *InputArea) SetCursorPos(x, y int) {
 	field.recalculateCursorOffset()
 }
 
+func (field *InputArea) GetCursorPos() (int, int) {
+	return field.cursorOffsetX, field.cursorOffsetY
+}
+
 // SetCursorOffset sets the runewidth cursor offset.
 func (field *InputArea) SetCursorOffset(offset int) {
 	field.cursorOffsetW = offset
+	field.selectionStartW = -1
+	field.selectionEndW = -1
+}
+
+func (field *InputArea) GetCursorOffset() int {
+	return field.cursorOffsetW
+}
+
+func (field *InputArea) SetSelection(start, end int) {
+	field.selectionStartW = start
+	field.selectionEndW = end
+}
+
+func (field *InputArea) GetSelectedText() string {
+	leftLeft := iaSubstringBefore(field.text, field.selectionStartW)
+	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
+	return rightLeft[len(leftLeft):]
+}
+
+func (field *InputArea) GetSelection() (int, int) {
+	return field.selectionStartW, field.selectionEndW
+}
+
+func (field *InputArea) ClearSelection() {
 	field.selectionStartW = -1
 	field.selectionEndW = -1
 }
@@ -906,6 +956,10 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	case tcell.KeyBackspace2:
 		field.RemovePreviousCharacter()
 		doSnapshot = true
+	case tcell.KeyTab:
+		if field.tabComplete != nil {
+			field.tabComplete(field.text, field.cursorOffsetW)
+		}
 	default:
 		if field.vimBindings {
 			switch event.Key() {

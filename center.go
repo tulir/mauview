@@ -14,8 +14,8 @@ import (
 type Centerer struct {
 	target           Component
 	screen           *ProxyScreen
-	width            int
-	height           int
+	Width            int
+	Height           int
 	childFocused     bool
 	alwaysFocusChild bool
 }
@@ -23,9 +23,9 @@ type Centerer struct {
 func Center(target Component, width, height int) *Centerer {
 	return &Centerer{
 		target:           target,
-		screen:           &ProxyScreen{style: tcell.StyleDefault, width: width, height: height},
-		width:            width,
-		height:           height,
+		screen:           &ProxyScreen{Style: tcell.StyleDefault, Width: width, Height: height},
+		Width:            width,
+		Height:           height,
 		childFocused:     false,
 		alwaysFocusChild: false,
 	}
@@ -38,15 +38,15 @@ func (center *Centerer) SetAlwaysFocusChild(always bool) *Centerer {
 
 func (center *Centerer) Draw(screen Screen) {
 	totalWidth, totalHeight := screen.Size()
-	paddingX := (totalWidth - center.width) / 2
-	paddingY := (totalHeight - center.height) / 2
+	paddingX := (totalWidth - center.Width) / 2
+	paddingY := (totalHeight - center.Height) / 2
 	if paddingX >= 0 {
-		center.screen.offsetX = paddingX
+		center.screen.OffsetX = paddingX
 	}
 	if paddingY >= 0 {
-		center.screen.offsetY = paddingY
+		center.screen.OffsetY = paddingY
 	}
-	center.screen.parent = screen
+	center.screen.Parent = screen
 	center.target.Draw(center.screen)
 }
 
@@ -74,10 +74,10 @@ func (center *Centerer) Blur() {
 
 func (center *Centerer) OnMouseEvent(evt MouseEvent) bool {
 	x, y := evt.Position()
-	x -= center.screen.offsetX
-	y -= center.screen.offsetY
+	x -= center.screen.OffsetX
+	y -= center.screen.OffsetY
 	focusable, ok := center.target.(Focusable)
-	if x < 0 || y < 0 || x > center.width || y > center.height {
+	if x < 0 || y < 0 || x > center.Width || y > center.Height {
 		if ok && evt.Buttons() == tcell.Button1 && !evt.HasMotion() {
 			if center.alwaysFocusChild && !center.childFocused {
 				focusable.Focus()
@@ -95,7 +95,7 @@ func (center *Centerer) OnMouseEvent(evt MouseEvent) bool {
 		center.childFocused = true
 		focusChanged = true
 	}
-	return center.target.OnMouseEvent(OffsetMouseEvent(evt, -center.screen.offsetX, -center.screen.offsetY)) || focusChanged
+	return center.target.OnMouseEvent(OffsetMouseEvent(evt, -center.screen.OffsetX, -center.screen.OffsetY)) || focusChanged
 }
 
 func (center *Centerer) OnPasteEvent(evt PasteEvent) bool {

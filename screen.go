@@ -31,60 +31,77 @@ type Screen interface {
 
 // ProxyScreen is a proxy to a tcell Screen with a specific allowed drawing area.
 type ProxyScreen struct {
-	parent           Screen
-	offsetX, offsetY int
-	width, height    int
-	style            tcell.Style
+	Parent           Screen
+	OffsetX, OffsetY int
+	Width, Height    int
+	Style            tcell.Style
 }
 
 func NewProxyScreen(parent Screen, offsetX, offsetY, width, height int) Screen {
 	return &ProxyScreen{
-		parent:  parent,
-		offsetX: offsetX,
-		offsetY: offsetY,
-		width:   width,
-		height:  height,
-		style:   tcell.StyleDefault,
+		Parent:  parent,
+		OffsetX: offsetX,
+		OffsetY: offsetY,
+		Width:   width,
+		Height:  height,
+		Style:   tcell.StyleDefault,
 	}
 }
 
+func (ss *ProxyScreen) IsInArea(x, y int) bool {
+	return x >= ss.OffsetX && x < ss.OffsetX+ ss.Width &&
+		y >= ss.OffsetY && y < ss.OffsetY+ ss.Height
+}
+
+func (ss *ProxyScreen) YEnd() int {
+	return ss.OffsetY + ss.Height
+}
+
+func (ss *ProxyScreen) XEnd() int {
+	return ss.OffsetX + ss.Width
+}
+
+func (ss *ProxyScreen) OffsetMouseEvent(event MouseEvent) MouseEvent {
+	return OffsetMouseEvent(event, ss.OffsetX, ss.OffsetY)
+}
+
 func (ss *ProxyScreen) Clear() {
-	ss.Fill(' ', ss.style)
+	ss.Fill(' ', ss.Style)
 }
 
 func (ss *ProxyScreen) Fill(r rune, style tcell.Style) {
-	for x := ss.offsetX; x < ss.offsetX+ss.width; x++ {
-		for y := ss.offsetY; y < ss.offsetY+ss.height; y++ {
-			ss.parent.SetCell(x, y, style, r)
+	for x := ss.OffsetX; x < ss.XEnd(); x++ {
+		for y := ss.OffsetY; y < ss.YEnd(); y++ {
+			ss.Parent.SetCell(x, y, style, r)
 		}
 	}
 }
 
 func (ss *ProxyScreen) SetStyle(style tcell.Style) {
-	ss.style = style
+	ss.Style = style
 }
 
 func (ss *ProxyScreen) adjustCoordinates(x, y int) (int, int, bool) {
-	if x < 0 || y < 0 || (ss.width >= 0 && x >= ss.width) || (ss.height >= 0 && y >= ss.height) {
+	if x < 0 || y < 0 || (ss.Width >= 0 && x >= ss.Width) || (ss.Height >= 0 && y >= ss.Height) {
 		return -1, -1, false
 	}
 
-	x += ss.offsetX
-	y += ss.offsetY
+	x += ss.OffsetX
+	y += ss.OffsetY
 	return x, y, true
 }
 
 func (ss *ProxyScreen) SetCell(x, y int, style tcell.Style, ch ...rune) {
 	x, y, ok := ss.adjustCoordinates(x, y)
 	if ok {
-		ss.parent.SetCell(x, y, style, ch...)
+		ss.Parent.SetCell(x, y, style, ch...)
 	}
 }
 
 func (ss *ProxyScreen) GetContent(x, y int) (mainc rune, combc []rune, style tcell.Style, width int) {
 	x, y, ok := ss.adjustCoordinates(x, y)
 	if ok {
-		return ss.parent.GetContent(x, y)
+		return ss.Parent.GetContent(x, y)
 	}
 	return 0, nil, tcell.StyleDefault, 0
 }
@@ -92,19 +109,19 @@ func (ss *ProxyScreen) GetContent(x, y int) (mainc rune, combc []rune, style tce
 func (ss *ProxyScreen) SetContent(x int, y int, mainc rune, combc []rune, style tcell.Style) {
 	x, y, ok := ss.adjustCoordinates(x, y)
 	if ok {
-		ss.parent.SetContent(x, y, mainc, combc, style)
+		ss.Parent.SetContent(x, y, mainc, combc, style)
 	}
 }
 
 func (ss *ProxyScreen) ShowCursor(x, y int) {
 	x, y, ok := ss.adjustCoordinates(x, y)
 	if ok {
-		ss.parent.ShowCursor(x, y)
+		ss.Parent.ShowCursor(x, y)
 	}
 }
 
 func (ss *ProxyScreen) HideCursor() {
-	ss.parent.HideCursor()
+	ss.Parent.HideCursor()
 }
 
 // Size returns the size of this subscreen.
@@ -112,30 +129,30 @@ func (ss *ProxyScreen) HideCursor() {
 // If the subscreen doesn't fit in the parent with the set offset and size,
 // the returned size is whatever can actually be rendered.
 func (ss *ProxyScreen) Size() (width int, height int) {
-	width, height = ss.parent.Size()
-	width -= ss.offsetX
-	height -= ss.offsetY
-	if width > ss.width {
-		width = ss.width
+	width, height = ss.Parent.Size()
+	width -= ss.OffsetX
+	height -= ss.OffsetY
+	if width > ss.Width {
+		width = ss.Width
 	}
-	if height > ss.height {
-		height = ss.height
+	if height > ss.Height {
+		height = ss.Height
 	}
 	return
 }
 
 func (ss *ProxyScreen) Colors() int {
-	return ss.parent.Colors()
+	return ss.Parent.Colors()
 }
 
 func (ss *ProxyScreen) CharacterSet() string {
-	return ss.parent.CharacterSet()
+	return ss.Parent.CharacterSet()
 }
 
 func (ss *ProxyScreen) CanDisplay(r rune, checkFallbacks bool) bool {
-	return ss.parent.CanDisplay(r, checkFallbacks)
+	return ss.Parent.CanDisplay(r, checkFallbacks)
 }
 
 func (ss *ProxyScreen) HasKey(key tcell.Key) bool {
-	return ss.parent.HasKey(key)
+	return ss.Parent.HasKey(key)
 }

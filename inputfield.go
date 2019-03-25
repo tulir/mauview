@@ -79,9 +79,9 @@ func (field *InputField) SetText(text string) *InputField {
 
 // SetTextAndMoveCursor sets the current text of the input field and moves the cursor with the width difference.
 func (field *InputField) SetTextAndMoveCursor(text string) *InputField {
-	oldWidth := runewidth.StringWidth(field.text)
+	oldWidth := StringWidth(field.text)
 	field.text = text
-	newWidth := runewidth.StringWidth(field.text)
+	newWidth := StringWidth(field.text)
 	if oldWidth != newWidth {
 		field.cursorOffset += newWidth - oldWidth
 	}
@@ -102,20 +102,20 @@ func (field *InputField) SetPlaceholder(text string) *InputField {
 	return field
 }
 
-// SetFieldBackgroundColor sets the background color of the input area.
-func (field *InputField) SetFieldBackgroundColor(color tcell.Color) *InputField {
+// SetBackgroundColor sets the background color of the input area.
+func (field *InputField) SetBackgroundColor(color tcell.Color) *InputField {
 	field.fieldBackgroundColor = color
 	return field
 }
 
-// SetFieldTextColor sets the text color of the input area.
-func (field *InputField) SetFieldTextColor(color tcell.Color) *InputField {
+// SetTextColor sets the text color of the input area.
+func (field *InputField) SetTextColor(color tcell.Color) *InputField {
 	field.fieldTextColor = color
 	return field
 }
 
-// SetPlaceholderExtColor sets the text color of placeholder text.
-func (field *InputField) SetPlaceholderExtColor(color tcell.Color) *InputField {
+// SetPlaceholderTextColor sets the text color of placeholder text.
+func (field *InputField) SetPlaceholderTextColor(color tcell.Color) *InputField {
 	field.placeholderTextColor = color
 	return field
 }
@@ -150,7 +150,7 @@ func (field *InputField) prepareText(screen Screen) (text string) {
 	if field.maskCharacter > 0 {
 		text = strings.Repeat(string(field.maskCharacter), utf8.RuneCountInString(text))
 	}
-	textWidth := runewidth.StringWidth(text)
+	textWidth := StringWidth(text)
 	if field.cursorOffset >= textWidth {
 		width--
 	}
@@ -212,7 +212,7 @@ func (field *InputField) SetCursorOffset(offset int) *InputField {
 	if offset < 0 {
 		offset = 0
 	} else {
-		width := runewidth.StringWidth(field.text)
+		width := StringWidth(field.text)
 		if offset >= width {
 			offset = width
 		}
@@ -252,7 +252,7 @@ func (field *InputField) MoveCursorLeft(moveWord bool) {
 	before := SubstringBefore(field.text, field.cursorOffset)
 	if moveWord {
 		found := lastWord.FindString(before)
-		field.cursorOffset -= runewidth.StringWidth(found)
+		field.cursorOffset -= StringWidth(found)
 	} else if len(before) > 0 {
 		beforeRunes := []rune(before)
 		char := beforeRunes[len(beforeRunes)-1]
@@ -265,7 +265,7 @@ func (field *InputField) MoveCursorRight(moveWord bool) {
 	after := field.text[len(before):]
 	if moveWord {
 		found := firstWord.FindString(after)
-		field.cursorOffset += runewidth.StringWidth(found)
+		field.cursorOffset += StringWidth(found)
 	} else if len(after) > 0 {
 		char := []rune(after)[0]
 		field.cursorOffset += runewidth.RuneWidth(char)
@@ -273,7 +273,7 @@ func (field *InputField) MoveCursorRight(moveWord bool) {
 }
 
 func (field *InputField) RemoveNextCharacter() {
-	if field.cursorOffset >= runewidth.StringWidth(field.text) {
+	if field.cursorOffset >= StringWidth(field.text) {
 		return
 	}
 	leftPart := SubstringBefore(field.text, field.cursorOffset)
@@ -295,7 +295,7 @@ func (field *InputField) RemovePreviousWord() {
 	replacement := lastWord.ReplaceAllString(leftPart, "")
 	field.text = replacement + rightPart
 
-	field.cursorOffset -= runewidth.StringWidth(leftPart) - runewidth.StringWidth(replacement)
+	field.cursorOffset -= StringWidth(leftPart) - StringWidth(replacement)
 }
 
 func (field *InputField) RemovePreviousCharacter() {
@@ -315,7 +315,7 @@ func (field *InputField) RemovePreviousCharacter() {
 
 	field.text = leftPart + rightPart
 
-	field.cursorOffset -= runewidth.StringWidth(removedChar)
+	field.cursorOffset -= StringWidth(removedChar)
 }
 
 func (field *InputField) handleInputChanges(originalText string) {
@@ -328,7 +328,7 @@ func (field *InputField) handleInputChanges(originalText string) {
 	if field.cursorOffset < 0 {
 		field.cursorOffset = 0
 	}
-	width := runewidth.StringWidth(field.text)
+	width := StringWidth(field.text)
 	if field.cursorOffset > width {
 		field.cursorOffset = width
 	}
@@ -338,7 +338,11 @@ func (field *InputField) OnPasteEvent(event PasteEvent) bool {
 	defer field.handleInputChanges(field.text)
 	leftPart := SubstringBefore(field.text, field.cursorOffset)
 	field.text = leftPart + event.Text() + field.text[len(leftPart):]
-	field.cursorOffset += runewidth.StringWidth(event.Text())
+	field.cursorOffset += StringWidth(event.Text())
+	return true
+}
+
+func (field *InputField) Submit(event KeyEvent) bool {
 	return true
 }
 

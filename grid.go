@@ -24,8 +24,9 @@ type Grid struct {
 	children []gridChild
 	focused  *gridChild
 
-	prevWidth  int
-	prevHeight int
+	prevWidth   int
+	prevHeight  int
+	forceResize bool
 
 	columnWidths []int
 	rowHeights   []int
@@ -37,6 +38,7 @@ func NewGrid() *Grid {
 		focused:      nil,
 		prevWidth:    -1,
 		prevHeight:   -1,
+		forceResize:  false,
 		columnWidths: []int{-1},
 		rowHeights:   []int{-1},
 	}
@@ -51,23 +53,38 @@ func extend(arr []int, newSize int) []int {
 	return newArr
 }
 
-func (grid *Grid) AddComponent(comp Component, x, y, width, height int) *Grid {
+func (grid *Grid) createChild(comp Component, x, y, width, height int) gridChild {
 	if x+width >= len(grid.columnWidths) {
 		grid.columnWidths = extend(grid.columnWidths, x+width)
 	}
 	if y+height >= len(grid.rowHeights) {
 		grid.rowHeights = extend(grid.rowHeights, y+height)
 	}
-	grid.children = append(grid.children, gridChild{
+	return gridChild{
 		genericChild: genericChild{
-			screen: &ProxyScreen{parent: grid.screen, style: tcell.StyleDefault},
+			screen: &ProxyScreen{Parent: grid.screen, Style: tcell.StyleDefault},
 			target: comp,
 		},
 		relWidth:  width,
 		relHeight: height,
 		relX:      x,
 		relY:      y,
-	})
+	}
+}
+
+func (grid *Grid) addChild(child gridChild) {
+	if child.relX+child.relWidth >= len(grid.columnWidths) {
+		grid.columnWidths = extend(grid.columnWidths, child.relX+child.relWidth)
+	}
+	if child.relY+child.relHeight >= len(grid.rowHeights) {
+		grid.rowHeights = extend(grid.rowHeights, child.relY+child.relHeight)
+	}
+	grid.children = append(grid.children, child)
+	grid.forceResize = true
+}
+
+func (grid *Grid) AddComponent(comp Component, x, y, width, height int) *Grid {
+	grid.addChild(grid.createChild(comp, x, y, width, height))
 	return grid
 }
 
@@ -142,19 +159,20 @@ func (grid *Grid) OnResize(width, height int) {
 	absRowHeight, dynamicRows := pnSum(grid.rowHeights)
 	rowHeights := fillDynamic(grid.rowHeights, height-absRowHeight, dynamicRows)
 	for _, child := range grid.children {
-		child.screen.offsetX, _ = pnSum(columnWidths[:child.relX])
-		child.screen.offsetY, _ = pnSum(rowHeights[:child.relY])
-		child.screen.width, _ = pnSum(columnWidths[child.relX : child.relX+child.relWidth])
-		child.screen.height, _ = pnSum(rowHeights[child.relY : child.relY+child.relHeight])
+		child.screen.OffsetX, _ = pnSum(columnWidths[:child.relX])
+		child.screen.OffsetY, _ = pnSum(rowHeights[:child.relY])
+		child.screen.Width, _ = pnSum(columnWidths[child.relX : child.relX+child.relWidth])
+		child.screen.Height, _ = pnSum(rowHeights[child.relY : child.relY+child.relHeight])
 	}
 	grid.prevWidth, grid.prevHeight = width, height
 }
 
 func (grid *Grid) Draw(screen Screen) {
 	width, height := screen.Size()
-	if grid.prevWidth != width || grid.prevHeight != height {
+	if grid.forceResize || grid.prevWidth != width || grid.prevHeight != height {
 		grid.OnResize(screen.Size())
 	}
+	grid.forceResize = false
 	screen.Clear()
 	screenChanged := false
 	if screen != grid.screen {
@@ -163,7 +181,7 @@ func (grid *Grid) Draw(screen Screen) {
 	}
 	for _, child := range grid.children {
 		if screenChanged {
-			child.screen.parent = screen
+			child.screen.Parent = screen
 		}
 		if grid.focused == nil || child != *grid.focused {
 			child.target.Draw(child.screen)
@@ -189,12 +207,12 @@ func (grid *Grid) OnPasteEvent(event PasteEvent) bool {
 }
 
 func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
-	if grid.focused != nil && grid.focused.Within(event.Position()) {
+	if grid.focused != nil && grid.focused.screen.IsInArea(event.Position()) {
 		screen := grid.focused.screen
-		return grid.focused.target.OnMouseEvent(OffsetMouseEvent(event, -screen.offsetX, -screen.offsetY))
+		return grid.focused.target.OnMouseEvent(OffsetMouseEvent(event, -screen.OffsetX, -screen.OffsetY))
 	}
 	for _, child := range grid.children {
-		if child.Within(event.Position()) {
+		if child.screen.IsInArea(event.Position()) {
 			focusChanged := false
 			if event.Buttons() == tcell.Button1 && !event.HasMotion() {
 				if grid.focused != nil {
@@ -204,7 +222,7 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 				grid.focused.Focus()
 				focusChanged = true
 			}
-			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.offsetX, -child.screen.offsetY)) ||
+			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.OffsetX, -child.screen.OffsetY)) ||
 				focusChanged
 
 		}

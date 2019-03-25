@@ -51,9 +51,9 @@ func (flex *Flex) AddProportionalComponent(comp Component, size int) *Flex {
 	flex.children = append(flex.children, flexChild{
 		genericChild: genericChild{
 			target: comp,
-			screen: &ProxyScreen{style: tcell.StyleDefault},
+			screen: &ProxyScreen{Style: tcell.StyleDefault},
 		},
-		size:   -size,
+		size: -size,
 	})
 	return flex
 }
@@ -66,7 +66,6 @@ func (flex *Flex) RemoveComponent(comp Component) *Flex {
 	}
 	return flex
 }
-
 
 func (flex *Flex) Draw(screen Screen) {
 	width, height := screen.Size()
@@ -85,21 +84,21 @@ func (flex *Flex) Draw(screen Screen) {
 	}
 	offset := 0
 	for _, child := range flex.children {
-		child.screen.parent = screen
+		child.screen.Parent = screen
 		size := child.size
 		if size < 0 {
 			size = relTotalSize * (-size) / relParts
 		}
 		if flex.direction == FlexRow {
-			child.screen.height = size
-			child.screen.width = width
-			child.screen.offsetY = offset
-			child.screen.offsetX = 0
+			child.screen.Height = size
+			child.screen.Width = width
+			child.screen.OffsetY = offset
+			child.screen.OffsetX = 0
 		} else {
-			child.screen.height = height
-			child.screen.width = size
-			child.screen.offsetY = 0
-			child.screen.offsetX = offset
+			child.screen.Height = height
+			child.screen.Width = size
+			child.screen.OffsetY = 0
+			child.screen.OffsetX = offset
 		}
 		offset += size
 		if flex.focused == nil || child != *flex.focused {
@@ -126,12 +125,12 @@ func (flex *Flex) OnPasteEvent(event PasteEvent) bool {
 }
 
 func (flex *Flex) OnMouseEvent(event MouseEvent) bool {
-	if flex.focused != nil && flex.focused.Within(event.Position()) {
+	if flex.focused != nil && flex.focused.screen.IsInArea(event.Position()) {
 		screen := flex.focused.screen
-		return flex.focused.target.OnMouseEvent(OffsetMouseEvent(event, -screen.offsetX, -screen.offsetY))
+		return flex.focused.target.OnMouseEvent(OffsetMouseEvent(event, -screen.OffsetX, -screen.OffsetY))
 	}
 	for _, child := range flex.children {
-		if child.Within(event.Position()) {
+		if child.screen.IsInArea(event.Position()) {
 			focusChanged := false
 			if event.Buttons() == tcell.Button1 && !event.HasMotion() {
 				if flex.focused != nil {
@@ -141,12 +140,12 @@ func (flex *Flex) OnMouseEvent(event MouseEvent) bool {
 				flex.focused.Focus()
 				focusChanged = true
 			}
-			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.offsetX, -child.screen.offsetY)) ||
+			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.OffsetX, -child.screen.OffsetY)) ||
 				focusChanged
 
 		}
 	}
-	if event.Buttons() == tcell.Button1 && flex.focused != nil && !event.HasMotion()  {
+	if event.Buttons() == tcell.Button1 && flex.focused != nil && !event.HasMotion() {
 		flex.focused.Blur()
 		flex.focused = nil
 		return true

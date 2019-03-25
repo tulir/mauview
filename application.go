@@ -9,8 +9,9 @@ package mauview
 
 import (
 	"errors"
-	"maunium.net/go/tcell"
 	"sync"
+
+	"maunium.net/go/tcell"
 )
 
 type Component interface {
@@ -99,6 +100,14 @@ func (app *Application) Start() error {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				if app.screen != nil {
+					app.screen.Fini()
+				}
+				panic(p)
+			}
+		}()
 		defer wg.Done()
 		for {
 			app.RLock()
@@ -203,5 +212,7 @@ func (app *Application) Update() {
 }
 
 func (app *Application) update() {
-	app.screen.Show()
+	if app.screen != nil {
+		app.screen.Show()
+	}
 }

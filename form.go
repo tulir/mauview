@@ -11,54 +11,79 @@ import (
 	"maunium.net/go/tcell"
 )
 
-type formItem struct {
-	genericChild
+type Form struct {
+	*Grid
+	items []*gridChild
 }
 
-type Form struct {
-	items   []formItem
-	focused *formItem
+type FormItem interface {
+	Component
+	Submit(event KeyEvent) bool
 }
 
 func NewForm() *Form {
 	return &Form{
-		items: []formItem{},
-		focused: nil,
+		Grid: NewGrid(),
 	}
 }
 
-func (form *Form) Draw() {
-
+func (form *Form) Draw(screen Screen) {
+	form.Grid.Draw(screen)
 }
 
-func (form *Form) NextItem() {
-
+func (form *Form) FocusNextItem() {
+	for i := 0; i < len(form.items)-1; i++ {
+		if form.focused == form.items[i] {
+			form.focused = form.items[i+1]
+		}
+	}
+	form.focused = form.items[0]
 }
 
-func (form *Form) PreviousItem() {
+func (form *Form) FocusPreviousItem() {
+	for i := len(form.items) - 1; i > 0; i-- {
+		if form.focused == form.items[i] {
+			form.focused = form.items[i-1]
+		}
+	}
+	form.focused = form.items[len(form.items)-1]
+}
 
+func (form *Form) AddFormItem(comp Component, x, y, width, height int) *Form {
+	child := form.Grid.createChild(comp, x, y, width, height)
+	form.items = append(form.items, &child)
+	form.Grid.addChild(child)
+	return form
+}
+
+func (form *Form) RemoveFormItem(comp Component) *Form {
+	for index := len(form.items) - 1; index >= 0; index-- {
+		if form.items[index].target == comp {
+			form.items = append(form.items[:index], form.items[index+1:]...)
+		}
+	}
+	form.Grid.RemoveComponent(comp)
+	return form
 }
 
 func (form *Form) OnKeyEvent(event KeyEvent) bool {
 	switch event.Key() {
 	case tcell.KeyTab:
-		form.NextItem()
+		form.FocusNextItem()
+		return true
 	case tcell.KeyBacktab:
-		form.PreviousItem()
+		form.FocusPreviousItem()
+		return true
+	case tcell.KeyEnter:
+		if form.focused != nil {
+			if fi, ok := form.focused.target.(FormItem); ok {
+				if fi.Submit(event) {
+					form.FocusNextItem()
+				} else {
+					return false
+				}
+			}
+		}
 	}
-	if form.focused != nil {
-		return form.focused.target.OnKeyEvent(event)
-	}
-	return false
-}
-
-func (form *Form) OnPasteEvent(event PasteEvent) bool {
-	if form.focused != nil {
-		return form.focused.target.OnPasteEvent(event)
-	}
-	return false
-}
-
-func (form *Form) OnMouseEvent(event MouseEvent) bool {
-	return false
+	return form.Grid.OnKeyEvent(event)
 }
