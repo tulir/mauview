@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zyedidia/clipboard"
-
 	"github.com/mattn/go-runewidth"
+	"github.com/zyedidia/clipboard"
 
 	"maunium.net/go/tcell"
 )
@@ -550,7 +549,7 @@ func (field *InputArea) extendSelection(diff int) {
 	if field.selectionStartW > field.selectionEndW {
 		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
 	}
-	field.copy("primary")
+	field.copy("primary", false)
 }
 
 // MoveCursorUp moves the cursor up one line.
@@ -711,7 +710,7 @@ func (field *InputArea) startSelectionStreak(x, y int) {
 	}
 
 	field.selectionStreakStartY = field.cursorOffsetY
-	field.copy("primary")
+	field.copy("primary", false)
 }
 
 // ExtendSelection extends the selection as if the user dragged their mouse to the given coordinates.
@@ -773,7 +772,7 @@ func (field *InputArea) ExtendSelection(x, y int) {
 	if field.selectionStartW > field.selectionEndW {
 		field.selectionStartW, field.selectionEndW = field.selectionEndW, field.selectionStartW
 	}
-	field.copy("primary")
+	field.copy("primary", false)
 }
 
 // RemoveNextCharacter removes the character after the cursor.
@@ -850,7 +849,7 @@ func (field *InputArea) SelectAll() {
 	field.selectionStartW = 0
 	field.selectionEndW = iaStringWidth(field.text)
 	field.cursorOffsetW = field.selectionEndW
-	field.copy("primary")
+	field.copy("primary", false)
 }
 
 // handleInputChanges calls the text change handler and makes sure
@@ -908,10 +907,14 @@ func (field *InputArea) Paste() {
 
 // Copy copies the currently selected content onto the clipboard.
 func (field *InputArea) Copy() {
-	field.copy("clipboard")
+	field.copy("clipboard", false)
 }
 
-func (field *InputArea) copy(selection string) {
+func (field *InputArea) Cut() {
+	field.copy("clipboard", true)
+}
+
+func (field *InputArea) copy(selection string, cut bool) {
 	if !field.copySelection && selection == "primary" {
 		return
 	} else if field.selectionEndW == -1 {
@@ -921,6 +924,12 @@ func (field *InputArea) copy(selection string) {
 	rightLeft := iaSubstringBefore(field.text, field.selectionEndW)
 	text := rightLeft[len(left):]
 	_ = clipboard.WriteAll(text, selection)
+	if cut {
+		field.text = left + field.text[len(rightLeft):]
+		field.cursorOffsetW = field.selectionStartW
+		field.selectionStartW = -1
+		field.selectionEndW = -1
+	}
 }
 
 // OnKeyEvent handles a terminal key press event.
@@ -985,6 +994,8 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 			case tcell.KeyCtrlV:
 				field.Paste()
 				return true
+			case tcell.KeyCtrlX:
+				field.Cut()
 			default:
 				return false
 			}

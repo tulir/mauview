@@ -49,8 +49,8 @@ func NewProxyScreen(parent Screen, offsetX, offsetY, width, height int) Screen {
 }
 
 func (ss *ProxyScreen) IsInArea(x, y int) bool {
-	return x >= ss.OffsetX && x < ss.OffsetX+ ss.Width &&
-		y >= ss.OffsetY && y < ss.OffsetY+ ss.Height
+	return x >= ss.OffsetX && x <= ss.OffsetX+ ss.Width &&
+		y >= ss.OffsetY && y <= ss.OffsetY+ ss.Height
 }
 
 func (ss *ProxyScreen) YEnd() int {
@@ -62,7 +62,7 @@ func (ss *ProxyScreen) XEnd() int {
 }
 
 func (ss *ProxyScreen) OffsetMouseEvent(event MouseEvent) MouseEvent {
-	return OffsetMouseEvent(event, ss.OffsetX, ss.OffsetY)
+	return OffsetMouseEvent(event, -ss.OffsetX, -ss.OffsetY)
 }
 
 func (ss *ProxyScreen) Clear() {

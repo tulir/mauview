@@ -718,6 +718,9 @@ func (t *TextView) Draw(screen Screen) {
 	t.Lock()
 	defer t.Unlock()
 
+	screen.SetStyle(t.baseStyle)
+	screen.Clear()
+
 	// Get the available size.
 	width, height := screen.Size()
 	t.pageSize = height
