@@ -97,26 +97,30 @@ func (grid *Grid) RemoveComponent(comp Component) *Grid {
 	return grid
 }
 
-func (grid *Grid) SetColumn(col, width int) {
+func (grid *Grid) SetColumn(col, width int) *Grid {
 	if col >= len(grid.columnWidths) {
 		grid.columnWidths = extend(grid.columnWidths, col+1)
 	}
 	grid.columnWidths[col] = width
+	return grid
 }
 
-func (grid *Grid) SetRow(row, height int) {
+func (grid *Grid) SetRow(row, height int) *Grid {
 	if row >= len(grid.rowHeights) {
 		grid.rowHeights = extend(grid.rowHeights, row+1)
 	}
 	grid.rowHeights[row] = height
+	return grid
 }
 
-func (grid *Grid) SetColumns(columns []int) {
+func (grid *Grid) SetColumns(columns []int) *Grid {
 	grid.columnWidths = columns
+	return grid
 }
 
-func (grid *Grid) SetRows(rows []int) {
+func (grid *Grid) SetRows(rows []int) *Grid {
 	grid.rowHeights = rows
+	return grid
 }
 
 func pnSum(arr []int) (int, int) {

@@ -81,6 +81,7 @@ func (flex *Flex) Draw(screen Screen) {
 		} else {
 			relParts -= child.size
 		}
+
 	}
 	offset := 0
 	for _, child := range flex.children {
@@ -122,6 +123,15 @@ func (flex *Flex) OnPasteEvent(event PasteEvent) bool {
 		return flex.focused.target.OnPasteEvent(event)
 	}
 	return false
+}
+
+func (flex *Flex) SetFocused(comp Component) {
+	for _, child := range flex.children {
+		if child.target == comp {
+			flex.focused = &child
+			flex.focused.Focus()
+		}
+	}
 }
 
 func (flex *Flex) OnMouseEvent(event MouseEvent) bool {
