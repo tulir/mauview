@@ -34,24 +34,36 @@ func (form *Form) Draw(screen Screen) {
 func (form *Form) FocusNextItem() {
 	for i := 0; i < len(form.items)-1; i++ {
 		if form.focused == form.items[i] {
-			form.focused = form.items[i+1]
+			form.setFocused(form.items[i+1])
+			return
 		}
 	}
-	form.focused = form.items[0]
+	form.setFocused(form.items[0])
 }
 
 func (form *Form) FocusPreviousItem() {
 	for i := len(form.items) - 1; i > 0; i-- {
 		if form.focused == form.items[i] {
-			form.focused = form.items[i-1]
+			form.setFocused(form.items[i-1])
+			return
 		}
 	}
-	form.focused = form.items[len(form.items)-1]
+	form.setFocused(form.items[len(form.items)-1])
+}
+
+func (form *Form) setFocused(item *gridChild) {
+	if form.focused != nil {
+		form.focused.Blur()
+	}
+	form.focused = item
+	if form.focusReceived && form.focused != nil {
+		form.focused.Focus()
+	}
 }
 
 func (form *Form) AddFormItem(comp Component, x, y, width, height int) *Form {
 	child := form.Grid.createChild(comp, x, y, width, height)
-	form.items = append(form.items, &child)
+	form.items = append(form.items, child)
 	form.Grid.addChild(child)
 	return form
 }

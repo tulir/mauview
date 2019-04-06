@@ -77,9 +77,13 @@ func (b *Button) Blur() {
 
 func (b *Button) Draw(screen Screen) {
 	width, _ := screen.Size()
-	screen.SetStyle(b.style)
+	style := b.style
+	if b.focused {
+		style = b.focusedStyle
+	}
+	screen.SetStyle(style)
 	screen.Clear()
-	printWithStyle(screen, b.text, 0, 0, width, AlignCenter, b.style)
+	printWithStyle(screen, b.text, 0, 0, width, AlignCenter, style)
 }
 
 func (b *Button) Submit(event KeyEvent) bool {

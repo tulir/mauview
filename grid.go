@@ -21,8 +21,10 @@ type gridChild struct {
 
 type Grid struct {
 	screen   Screen
-	children []gridChild
+	children []*gridChild
 	focused  *gridChild
+
+	focusReceived bool
 
 	prevWidth   int
 	prevHeight  int
@@ -34,7 +36,7 @@ type Grid struct {
 
 func NewGrid() *Grid {
 	return &Grid{
-		children:     []gridChild{},
+		children:     []*gridChild{},
 		focused:      nil,
 		prevWidth:    -1,
 		prevHeight:   -1,
@@ -53,14 +55,14 @@ func extend(arr []int, newSize int) []int {
 	return newArr
 }
 
-func (grid *Grid) createChild(comp Component, x, y, width, height int) gridChild {
+func (grid *Grid) createChild(comp Component, x, y, width, height int) *gridChild {
 	if x+width >= len(grid.columnWidths) {
 		grid.columnWidths = extend(grid.columnWidths, x+width)
 	}
 	if y+height >= len(grid.rowHeights) {
 		grid.rowHeights = extend(grid.rowHeights, y+height)
 	}
-	return gridChild{
+	return &gridChild{
 		genericChild: genericChild{
 			screen: &ProxyScreen{Parent: grid.screen, Style: tcell.StyleDefault},
 			target: comp,
@@ -72,7 +74,7 @@ func (grid *Grid) createChild(comp Component, x, y, width, height int) gridChild
 	}
 }
 
-func (grid *Grid) addChild(child gridChild) {
+func (grid *Grid) addChild(child *gridChild) {
 	if child.relX+child.relWidth >= len(grid.columnWidths) {
 		grid.columnWidths = extend(grid.columnWidths, child.relX+child.relWidth)
 	}
@@ -187,7 +189,7 @@ func (grid *Grid) Draw(screen Screen) {
 		if screenChanged {
 			child.screen.Parent = screen
 		}
-		if grid.focused == nil || child != *grid.focused {
+		if grid.focused == nil || child != grid.focused {
 			child.target.Draw(child.screen)
 		}
 	}
@@ -222,7 +224,7 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 				if grid.focused != nil {
 					grid.focused.Blur()
 				}
-				grid.focused = &child
+				grid.focused = child
 				grid.focused.Focus()
 				focusChanged = true
 			}
@@ -239,11 +241,17 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 	return false
 }
 
-func (grid *Grid) Focus() {}
+func (grid *Grid) Focus() {
+	grid.focusReceived = true
+	if grid.focused != nil {
+		grid.focused.Focus()
+	}
+}
 
 func (grid *Grid) Blur() {
 	if grid.focused != nil {
 		grid.focused.Blur()
 		grid.focused = nil
 	}
+	grid.focusReceived = false
 }
