@@ -8,10 +8,13 @@
 package mauview
 
 import (
+	"sync"
+
 	"maunium.net/go/tcell"
 )
 
 type TextField struct {
+	sync.Mutex
 	*SimpleEventHandler
 	text  string
 	style tcell.Style
@@ -27,27 +30,38 @@ func NewTextField() *TextField {
 }
 
 func (tf *TextField) SetText(text string) *TextField {
+	tf.Lock()
 	tf.text = text
+	tf.Unlock()
 	return tf
 }
 
 func (tf *TextField) SetTextColor(color tcell.Color) *TextField {
+	tf.Lock()
 	tf.style = tf.style.Foreground(color)
+	tf.Unlock()
 	return tf
 }
 
 func (tf *TextField) SetBackgroundColor(color tcell.Color) *TextField {
+	tf.Lock()
 	tf.style = tf.style.Background(color)
+	tf.Unlock()
 	return tf
 }
+
 func (tf *TextField) SetStyle(style tcell.Style) *TextField {
+	tf.Lock()
 	tf.style = style
+	tf.Unlock()
 	return tf
 }
 
 func (tf *TextField) Draw(screen Screen) {
+	tf.Lock()
 	width, _ := screen.Size()
 	screen.SetStyle(tf.style)
 	screen.Clear()
 	printWithStyle(screen, tf.text, 0, 0, width, AlignLeft, tf.style)
+	tf.Unlock()
 }
