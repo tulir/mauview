@@ -91,6 +91,7 @@ func (form *Form) OnKeyEvent(event KeyEvent) bool {
 			if fi, ok := form.focused.target.(FormItem); ok {
 				if fi.Submit(event) {
 					form.FocusNextItem()
+					return true
 				} else {
 					return false
 				}
