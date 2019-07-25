@@ -25,3 +25,5 @@ maunium.net/go/tcell v0.0.0-20190622183019-b3f8bb735f97 h1:n7xKc7I9pAllWKnlvrBam
 maunium.net/go/tcell v0.0.0-20190622183019-b3f8bb735f97/go.mod h1:8UOoBx9iuQZewMnaDHz9KQZtwFvl0TOA1f6hQhycgBw=
 maunium.net/go/tcell v0.0.0-20190622184231-1bfeebfb5c2d h1:SaCRwqnEyv9fwdHfrV1ZijEkvVXPltUGzxmKQtpCE0k=
 maunium.net/go/tcell v0.0.0-20190622184231-1bfeebfb5c2d/go.mod h1:8UOoBx9iuQZewMnaDHz9KQZtwFvl0TOA1f6hQhycgBw=
+maunium.net/go/tcell v0.0.0-20190725205644-92d267dd4bf0 h1:YBpR4WvOe22t0Oc8qAl3qGM3bSSJIL26Y0uhreFXFg8=
+maunium.net/go/tcell v0.0.0-20190725205644-92d267dd4bf0/go.mod h1:8UOoBx9iuQZewMnaDHz9KQZtwFvl0TOA1f6hQhycgBw=
