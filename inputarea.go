@@ -948,13 +948,13 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	case tcell.KeyEnter:
 		field.TypeRune('\n')
 		doSnapshot = true
-	case tcell.KeyLeft: //, tcell.KeyCtrlLeft, tcell.KeyShiftLeft, tcell.KeyCtrlShiftLeft:
+	case tcell.KeyLeft:
 		field.MoveCursorLeft(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
-	case tcell.KeyRight: //, tcell.KeyCtrlRight, tcell.KeyShiftRight, tcell.KeyCtrlShiftRight:
+	case tcell.KeyRight:
 		field.MoveCursorRight(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
-	case tcell.KeyUp: //, tcell.KeyShiftUp:
+	case tcell.KeyUp:
 		field.MoveCursorUp(hasMod(tcell.ModShift))
-	case tcell.KeyDown: //, tcell.KeyShiftDown:
+	case tcell.KeyDown:
 		field.MoveCursorDown(hasMod(tcell.ModShift))
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
