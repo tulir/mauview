@@ -69,6 +69,10 @@ type InputArea struct {
 
 	// An optional function which is called when the user presses tab.
 	tabComplete func(text string, pos int)
+	// An optional function which is called when the user presses the down arrow at the end of the input area.
+	pressKeyDownAtEnd func()
+	// An optional function which is called when the user presses the up arrow at the beginning of the input area.
+	pressKeyUpAtStart func()
 
 	// Change history for undo/redo functionality.
 	history []*inputAreaSnapshot
@@ -194,6 +198,16 @@ func (field *InputArea) SetChangedFunc(handler func(text string)) *InputArea {
 
 func (field *InputArea) SetTabCompleteFunc(handler func(text string, cursorOffset int)) *InputArea {
 	field.tabComplete = handler
+	return field
+}
+
+func (field *InputArea) SetPressKeyUpAtStartFunc(handler func()) *InputArea {
+	field.pressKeyUpAtStart = handler
+	return field
+}
+
+func (field *InputArea) SetPressKeyDownAtEndFunc(handler func()) *InputArea {
+	field.pressKeyDownAtEnd = handler
 	return field
 }
 
@@ -576,7 +590,11 @@ func (field *InputArea) MoveCursorUp(extendSelection bool) {
 		field.selectionStartW = -1
 		field.selectionEndW = -1
 	}
+	prevOffsetW := field.cursorOffsetW
 	field.recalculateCursorOffset()
+	if field.cursorOffsetW == prevOffsetW && field.pressKeyUpAtStart != nil {
+		field.pressKeyUpAtStart()
+	}
 }
 
 // MoveCursorDown moves the cursor down one line.
@@ -604,7 +622,11 @@ func (field *InputArea) MoveCursorDown(extendSelection bool) {
 		field.selectionStartW = -1
 		field.selectionEndW = -1
 	}
+	prevOffsetW := field.cursorOffsetW
 	field.recalculateCursorOffset()
+	if field.cursorOffsetW == prevOffsetW && field.pressKeyDownAtEnd != nil {
+		field.pressKeyDownAtEnd()
+	}
 }
 
 // SetCursorPos sets the X and Y cursor offsets.
