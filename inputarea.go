@@ -141,7 +141,7 @@ func (field *InputArea) SetText(text string) *InputArea {
 	if field.changed != nil {
 		field.changed(text)
 	}
-	field.snapshot()
+	field.snapshot(true)
 	return field
 }
 
@@ -156,7 +156,7 @@ func (field *InputArea) SetTextAndMoveCursor(text string) *InputArea {
 	if field.changed != nil {
 		field.changed(field.text)
 	}
-	field.snapshot()
+	field.snapshot(true)
 	return field
 }
 
@@ -230,10 +230,10 @@ func millis() int64 {
 }
 
 // Snapshot saves the current editor state into undo history.
-func (field *InputArea) snapshot() {
+func (field *InputArea) snapshot(forceNew bool) {
 	cur := field.history[field.historyPtr]
 	now := millis()
-	if cur.locked || now > cur.editTimestamp+field.historyMaxEditDelay || now > cur.origTimestamp+field.historyMaxSnapshotAge {
+	if cur.locked || forceNew || now > cur.editTimestamp+field.historyMaxEditDelay || now > cur.origTimestamp+field.historyMaxSnapshotAge {
 		newSnapshot := &inputAreaSnapshot{
 			text:          field.text,
 			cursorOffsetW: field.cursorOffsetW,
@@ -917,7 +917,7 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 	field.handleInputChanges(oldText)
 	field.selectionEndW = -1
 	field.selectionStartW = -1
-	field.snapshot()
+	field.snapshot(true)
 	return true
 }
 
@@ -962,14 +962,17 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	oldText := field.text
 
 	doSnapshot := false
+	forceNewSnapshot := false
 	// Process key event.
 	switch event.Key() {
 	case tcell.KeyRune:
 		field.TypeRune(event.Rune())
 		doSnapshot = true
+		forceNewSnapshot = event.Rune() == ' '
 	case tcell.KeyEnter:
 		field.TypeRune('\n')
 		doSnapshot = true
+		forceNewSnapshot = true
 	case tcell.KeyLeft:
 		field.MoveCursorLeft(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
 	case tcell.KeyRight:
@@ -984,7 +987,9 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	case tcell.KeyBackspace:
 		field.RemovePreviousWord()
 		doSnapshot = true
+		forceNewSnapshot = true
 	case tcell.KeyBackspace2:
+		forceNewSnapshot = field.selectionEndW > 0
 		field.RemovePreviousCharacter()
 		doSnapshot = true
 	case tcell.KeyTab:
@@ -997,9 +1002,11 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 			case tcell.KeyCtrlU:
 				field.Clear()
 				doSnapshot = true
+				forceNewSnapshot = true
 			case tcell.KeyCtrlW:
 				field.RemovePreviousWord()
 				doSnapshot = true
+				forceNewSnapshot = true
 			default:
 				return false
 			}
@@ -1025,7 +1032,7 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	}
 	field.handleInputChanges(oldText)
 	if doSnapshot {
-		field.snapshot()
+		field.snapshot(forceNewSnapshot)
 	}
 	return true
 }
