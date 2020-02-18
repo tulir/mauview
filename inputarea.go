@@ -902,7 +902,7 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 // Paste reads the clipboard and inserts the content at the cursor position.
 func (field *InputArea) Paste() {
 	text, _ := clipboard.ReadAll("clipboard")
-	field.OnPasteEvent(tcell.NewEventPaste(text))
+	field.OnPasteEvent(tcell.NewEventPaste(text, ""))
 }
 
 // Copy copies the currently selected content onto the clipboard.
@@ -948,13 +948,13 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 	case tcell.KeyEnter:
 		field.TypeRune('\n')
 		doSnapshot = true
-	case tcell.KeyLeft, tcell.KeyCtrlLeft, tcell.KeyShiftLeft, tcell.KeyCtrlShiftLeft:
+	case tcell.KeyLeft: //, tcell.KeyCtrlLeft, tcell.KeyShiftLeft, tcell.KeyCtrlShiftLeft:
 		field.MoveCursorLeft(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
-	case tcell.KeyRight, tcell.KeyCtrlRight, tcell.KeyShiftRight, tcell.KeyCtrlShiftRight:
+	case tcell.KeyRight: //, tcell.KeyCtrlRight, tcell.KeyShiftRight, tcell.KeyCtrlShiftRight:
 		field.MoveCursorRight(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
-	case tcell.KeyUp, tcell.KeyShiftUp:
+	case tcell.KeyUp: //, tcell.KeyShiftUp:
 		field.MoveCursorUp(hasMod(tcell.ModShift))
-	case tcell.KeyDown, tcell.KeyShiftDown:
+	case tcell.KeyDown: //, tcell.KeyShiftDown:
 		field.MoveCursorDown(hasMod(tcell.ModShift))
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
