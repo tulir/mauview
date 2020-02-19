@@ -581,7 +581,7 @@ func (field *InputArea) MoveCursorUp(extendSelection bool) {
 	} else {
 		field.cursorOffsetX = 0
 	}
-	if extendSelection {
+	if extendSelection && len(field.lines) > 0 {
 		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
 		curLineBefore := iaSubstringBefore(field.lines[field.cursorOffsetY], field.cursorOffsetX)
 		curLineAfter := field.lines[field.cursorOffsetY][len(curLineBefore):]
@@ -613,7 +613,7 @@ func (field *InputArea) MoveCursorDown(extendSelection bool) {
 		lineWidth := iaStringWidth(field.lines[field.cursorOffsetY])
 		field.cursorOffsetX = lineWidth
 	}
-	if extendSelection {
+	if extendSelection && len(field.lines) > 0 {
 		prevLineBefore := iaSubstringBefore(field.lines[pY], pX)
 		prevLineAfter := field.lines[pY][len(prevLineBefore):]
 		curLineBefore := iaSubstringBefore(field.lines[field.cursorOffsetY], field.cursorOffsetX)
