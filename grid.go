@@ -32,6 +32,8 @@ type Grid struct {
 
 	columnWidths []int
 	rowHeights   []int
+
+	onFocusChanged func(from, to Component)
 }
 
 func NewGrid() *Grid {
@@ -53,6 +55,11 @@ func extend(arr []int, newSize int) []int {
 		newArr[i] = -1
 	}
 	return newArr
+}
+
+func (form *Form) SetOnFocusChanged(fn func(from, to Component)) *Form {
+	form.onFocusChanged = fn
+	return form
 }
 
 func (grid *Grid) createChild(comp Component, x, y, width, height int) *gridChild {
@@ -212,6 +219,25 @@ func (grid *Grid) OnPasteEvent(event PasteEvent) bool {
 	return false
 }
 
+func (grid *Grid) setFocused(item *gridChild) {
+	if grid.focused != nil {
+		grid.focused.Blur()
+	}
+	var prevFocus, newFocus Component
+	if grid.focused != nil {
+		prevFocus = grid.focused.target
+	}
+	if item != nil {
+		newFocus = item.target
+	}
+	grid.focused = item
+	if grid.focusReceived && grid.focused != nil {
+		grid.focused.Focus()
+	}
+	if grid.onFocusChanged != nil {
+		grid.onFocusChanged(prevFocus, newFocus)
+	}
+}
 func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 	if grid.focused != nil && grid.focused.screen.IsInArea(event.Position()) {
 		screen := grid.focused.screen
@@ -221,11 +247,7 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 		if child.screen.IsInArea(event.Position()) {
 			focusChanged := false
 			if event.Buttons() == tcell.Button1 && !event.HasMotion() {
-				if grid.focused != nil {
-					grid.focused.Blur()
-				}
-				grid.focused = child
-				grid.focused.Focus()
+				grid.setFocused(child)
 				focusChanged = true
 			}
 			return child.target.OnMouseEvent(OffsetMouseEvent(event, -child.screen.OffsetX, -child.screen.OffsetY)) ||
@@ -234,8 +256,7 @@ func (grid *Grid) OnMouseEvent(event MouseEvent) bool {
 		}
 	}
 	if event.Buttons() == tcell.Button1 && !event.HasMotion() && grid.focused != nil {
-		grid.focused.Blur()
-		grid.focused = nil
+		grid.setFocused(nil)
 		return true
 	}
 	return false
@@ -250,8 +271,7 @@ func (grid *Grid) Focus() {
 
 func (grid *Grid) Blur() {
 	if grid.focused != nil {
-		grid.focused.Blur()
-		grid.focused = nil
+		grid.setFocused(nil)
 	}
 	grid.focusReceived = false
 }

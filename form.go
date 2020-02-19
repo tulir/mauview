@@ -51,16 +51,6 @@ func (form *Form) FocusPreviousItem() {
 	form.setFocused(form.items[len(form.items)-1])
 }
 
-func (form *Form) setFocused(item *gridChild) {
-	if form.focused != nil {
-		form.focused.Blur()
-	}
-	form.focused = item
-	if form.focusReceived && form.focused != nil {
-		form.focused.Focus()
-	}
-}
-
 func (form *Form) AddFormItem(comp Component, x, y, width, height int) *Form {
 	child := form.Grid.createChild(comp, x, y, width, height)
 	form.items = append(form.items, child)
