@@ -140,14 +140,15 @@ func (field *InputField) SetTabCompleteFunc(handler func(text string, cursorOffs
 }
 
 // prepareText prepares the text to be displayed and recalculates the view and cursor offsets.
-func (field *InputField) prepareText(screen Screen) (text string) {
+func (field *InputField) prepareText(screen Screen) (text string, placeholder bool) {
 	width, _ := screen.Size()
 	text = field.text
 	if len(text) == 0 && len(field.placeholder) > 0 {
-		Print(screen, field.placeholder, 0, 0, width, AlignLeft, field.placeholderTextColor)
+		text = field.placeholder
+		placeholder = true
 	}
 
-	if field.maskCharacter > 0 {
+	if !placeholder && field.maskCharacter > 0 {
 		text = strings.Repeat(string(field.maskCharacter), utf8.RuneCountInString(text))
 	}
 	textWidth := StringWidth(text)
@@ -171,11 +172,14 @@ func (field *InputField) prepareText(screen Screen) (text string) {
 }
 
 // drawText draws the text and the cursor.
-func (field *InputField) drawText(screen Screen, text string) {
+func (field *InputField) drawText(screen Screen, text string, placeholder bool) {
 	width, _ := screen.Size()
 	runes := []rune(text)
 	x := 0
 	style := tcell.StyleDefault.Foreground(field.fieldTextColor).Background(field.fieldBackgroundColor)
+	if placeholder {
+		style = style.Foreground(field.placeholderTextColor)
+	}
 	for pos := field.viewOffset; pos <= width+field.viewOffset && pos < len(runes); pos++ {
 		ch := runes[pos]
 		w := runewidth.RuneWidth(ch)
@@ -197,8 +201,8 @@ func (field *InputField) Draw(screen Screen) {
 		return
 	}
 
-	text := field.prepareText(screen)
-	field.drawText(screen, text)
+	text, placeholder := field.prepareText(screen)
+	field.drawText(screen, text, placeholder)
 	if field.focused {
 		field.setCursor(screen)
 	}
