@@ -14,8 +14,6 @@ import (
 type Centerer struct {
 	target           Component
 	screen           *ProxyScreen
-	Width            int
-	Height           int
 	childFocused     bool
 	alwaysFocusChild bool
 }
@@ -24,11 +22,22 @@ func Center(target Component, width, height int) *Centerer {
 	return &Centerer{
 		target:           target,
 		screen:           &ProxyScreen{Style: tcell.StyleDefault, Width: width, Height: height},
-		Width:            width,
-		Height:           height,
 		childFocused:     false,
 		alwaysFocusChild: false,
 	}
+}
+
+func (center *Centerer) SetHeight(height int) {
+	center.screen.Height = height
+}
+
+func (center *Centerer) SetWidth(width int) {
+	center.screen.Width = width
+}
+
+func (center *Centerer) SetSize(width, height int) {
+	center.screen.Width = width
+	center.screen.Height = height
 }
 
 func (center *Centerer) SetAlwaysFocusChild(always bool) *Centerer {
@@ -38,8 +47,8 @@ func (center *Centerer) SetAlwaysFocusChild(always bool) *Centerer {
 
 func (center *Centerer) Draw(screen Screen) {
 	totalWidth, totalHeight := screen.Size()
-	paddingX := (totalWidth - center.Width) / 2
-	paddingY := (totalHeight - center.Height) / 2
+	paddingX := (totalWidth - center.screen.Width) / 2
+	paddingY := (totalHeight - center.screen.Height) / 2
 	if paddingX >= 0 {
 		center.screen.OffsetX = paddingX
 	}
@@ -77,7 +86,7 @@ func (center *Centerer) OnMouseEvent(evt MouseEvent) bool {
 	x -= center.screen.OffsetX
 	y -= center.screen.OffsetY
 	focusable, ok := center.target.(Focusable)
-	if x < 0 || y < 0 || x > center.Width || y > center.Height {
+	if x < 0 || y < 0 || x > center.screen.Width || y > center.screen.Height {
 		if ok && evt.Buttons() == tcell.Button1 && !evt.HasMotion() {
 			if center.alwaysFocusChild && !center.childFocused {
 				focusable.Focus()
