@@ -83,7 +83,7 @@ func (b *Button) Draw(screen Screen) {
 	}
 	screen.SetStyle(style)
 	screen.Clear()
-	printWithStyle(screen, b.text, 0, 0, width, AlignCenter, style)
+	PrintWithStyle(screen, b.text, 0, 0, width, AlignCenter, style)
 }
 
 func (b *Button) Submit(event KeyEvent) bool {

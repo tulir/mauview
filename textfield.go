@@ -62,6 +62,6 @@ func (tf *TextField) Draw(screen Screen) {
 	width, _ := screen.Size()
 	screen.SetStyle(tf.style)
 	screen.Clear()
-	printWithStyle(screen, tf.text, 0, 0, width, AlignLeft, tf.style)
+	PrintWithStyle(screen, tf.text, 0, 0, width, AlignLeft, tf.style)
 	tf.Unlock()
 }
