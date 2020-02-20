@@ -817,6 +817,10 @@ func (field *InputArea) RemoveNextCharacter() {
 
 // RemovePreviousWord removes the word before the cursor.
 func (field *InputArea) RemovePreviousWord() {
+	if field.selectionEndW > 0 {
+		field.RemoveSelection()
+		return
+	}
 	left := iaSubstringBefore(field.text, field.cursorOffsetW)
 	replacement := lastWord.ReplaceAllString(left, "")
 	field.text = replacement + field.text[len(left):]
