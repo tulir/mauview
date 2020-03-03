@@ -14,3 +14,5 @@ golang.org/x/sys v0.0.0-20190626150813-e07cf5db2756 h1:9nuHUbU8dRnRRfj9KjWUVrJeo
 golang.org/x/sys v0.0.0-20190626150813-e07cf5db2756/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+maunium.net/go/tcell v0.1.0 h1:XzsEoGCvOw5nac+tlkSLzQcliLYTN4PrtA7ar2ptjSM=
+maunium.net/go/tcell v0.1.0/go.mod h1:Ru7KmI5AU7xHUx6hGltgJvknrS+8jlGGMKK15pZuc9k=
