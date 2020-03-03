@@ -648,7 +648,7 @@ func (field *InputArea) GetCursorPos() (int, int) {
 // SetCursorOffset sets the runewidth cursor offset.
 func (field *InputArea) SetCursorOffset(offset int) {
 	if offset < 0 {
-		offset = iaStringWidth(field.text) - offset + 1
+		offset = iaStringWidth(field.text) - (offset + 1)
 	}
 	field.cursorOffsetW = offset
 	field.selectionStartW = -1
