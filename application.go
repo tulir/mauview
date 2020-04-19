@@ -10,6 +10,7 @@ package mauview
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"maunium.net/go/tcell"
 )
@@ -33,6 +34,7 @@ type Application struct {
 	events            chan tcell.Event
 	updates           chan func()
 	screenReplacement chan tcell.Screen
+	redrawTicker      *time.Ticker
 }
 
 const queueSize = 255
@@ -42,6 +44,7 @@ func NewApplication() *Application {
 		events:            make(chan tcell.Event, queueSize),
 		updates:           make(chan func(), queueSize),
 		screenReplacement: make(chan tcell.Screen, 1),
+		redrawTicker:      time.NewTicker(1 * time.Minute),
 	}
 }
 
@@ -71,6 +74,11 @@ func (app *Application) makeNewScreen() error {
 
 	app.screenReplacement <- screen
 	return nil
+}
+
+func (app *Application) SetRedrawTicker(tick time.Duration) {
+	app.redrawTicker.Stop()
+	app.redrawTicker = time.NewTicker(tick)
 }
 
 func (app *Application) Start() error {
@@ -154,6 +162,8 @@ MainLoop:
 				app.screen.Clear()
 				app.redraw()
 			}
+		case <-app.redrawTicker.C:
+			app.redraw()
 		case updater := <-app.updates:
 			updater()
 		}
