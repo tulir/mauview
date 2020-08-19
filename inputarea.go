@@ -540,6 +540,54 @@ func (field *InputArea) MoveCursorRight(moveWord, extendSelection bool) {
 	}
 }
 
+// MoveCursorLeft moves the cursor "home", i.e. to the beginning of the current line.
+//
+// If moveFar is true, the cursor moves to the beginning of the entire text.
+//
+// If extendSelection is true, the selection is either extended to the beginning of the line (or the text) if the
+// cursor is on the right side of the selection or retracted from the left until either the beginning of the line
+// (or the text) is reached, or until the beginning of the selection is passed, in which case it is then extended until
+// the beginning of the line (or the text).
+func (field *InputArea) MoveCursorHome(moveFar, extendSelection bool) {
+	var diff int
+	if moveFar {
+		diff = -field.GetCursorOffset()
+	} else {
+		before := iaSubstringBefore(field.text, field.cursorOffsetW)
+		lastLineEndIndex := strings.LastIndex(before, "\n") + 1
+		diff = -field.GetCursorOffset() + lastLineEndIndex
+	}
+	if extendSelection {
+		field.extendSelection(diff)
+	} else {
+		field.moveCursor(diff)
+	}
+}
+
+// MoveCursorLeft moves the cursor to the end of the current line.
+//
+// If moveFar is true, the cursor moves to the end of the entire text.
+//
+// If extendSelection is true, the selection is either extended to the end of the line (or the text) if the cursor is on
+// the left side of the selection or retracted from the right until either the end of the line (or the text) is reached,
+// or until the end of the selection is passed, in which case it is then extended until the end of the line (or the
+// text).
+func (field *InputArea) MoveCursorEnd(moveFar, extendSelection bool) {
+	var diff int
+	if moveFar {
+		diff = -field.GetCursorOffset() + len(field.GetText())
+	} else {
+		after := field.GetText()[field.GetCursorOffset():]
+		firstLineEndOffset := strings.Index(after, "\n")
+		diff = firstLineEndOffset
+	}
+	if extendSelection {
+		field.extendSelection(diff)
+	} else {
+		field.moveCursor(diff)
+	}
+}
+
 // moveCursor resets the selection and adjusts the runewidth cursor offset.
 func (field *InputArea) moveCursor(diff int) {
 	field.selectionEndW = -1
@@ -1003,6 +1051,10 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		if field.tabComplete != nil {
 			field.tabComplete(field.text, field.cursorOffsetW)
 		}
+	case tcell.KeyHome:
+		field.MoveCursorHome(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
+	case tcell.KeyEnd:
+		field.MoveCursorEnd(hasMod(tcell.ModCtrl), hasMod(tcell.ModShift))
 	default:
 		if field.vimBindings {
 			switch event.Key() {
