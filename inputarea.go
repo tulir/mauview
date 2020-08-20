@@ -579,7 +579,11 @@ func (field *InputArea) MoveCursorEnd(moveFar, extendSelection bool) {
 	} else {
 		after := field.GetText()[field.GetCursorOffset():]
 		firstLineEndOffset := strings.Index(after, "\n")
-		diff = firstLineEndOffset
+		if firstLineEndOffset >= 0 {
+			diff = firstLineEndOffset
+		} else {
+			diff = len(after)
+		}
 	}
 	if extendSelection {
 		field.extendSelection(diff)
