@@ -27,6 +27,11 @@ type Focusable interface {
 	Blur()
 }
 
+type FocusableComponent interface {
+	Component
+	Focusable
+}
+
 type Application struct {
 	sync.RWMutex
 	screen            tcell.Screen

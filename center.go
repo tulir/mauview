@@ -11,6 +11,50 @@ import (
 	"maunium.net/go/tcell"
 )
 
+type FractionalCenterer struct {
+	center         *Centerer
+	minWidth       int
+	minHeight      int
+	fractionWidth  float64
+	fractionHeight float64
+}
+
+func FractionalCenter(target Component, minWidth, minHeight int, fractionalWidth, fractionalHeight float64) *FractionalCenterer {
+	return &FractionalCenterer{
+		center:         Center(target, 0, 0),
+		minWidth:       minWidth,
+		minHeight:      minHeight,
+		fractionWidth:  fractionalWidth,
+		fractionHeight: fractionalHeight,
+	}
+}
+
+func (fc *FractionalCenterer) SetAlwaysFocusChild(always bool) *FractionalCenterer {
+	fc.center.alwaysFocusChild = always
+	return fc
+}
+
+func (fc *FractionalCenterer) Blur()  { fc.center.Blur() }
+func (fc *FractionalCenterer) Focus() { fc.center.Focus() }
+
+func (fc *FractionalCenterer) OnMouseEvent(evt MouseEvent) bool { return fc.center.OnMouseEvent(evt) }
+func (fc *FractionalCenterer) OnKeyEvent(evt KeyEvent) bool     { return fc.center.OnKeyEvent(evt) }
+func (fc *FractionalCenterer) OnPasteEvent(evt PasteEvent) bool { return fc.center.OnPasteEvent(evt) }
+
+func (fc *FractionalCenterer) Draw(screen Screen) {
+	width, height := screen.Size()
+	width = int(float64(width) * fc.fractionWidth)
+	height = int(float64(height) * fc.fractionHeight)
+	if width < fc.minWidth {
+		width = fc.minWidth
+	}
+	if height < fc.minHeight {
+		height = fc.minHeight
+	}
+	fc.center.SetSize(width, height)
+	fc.center.Draw(screen)
+}
+
 type Centerer struct {
 	target           Component
 	screen           *ProxyScreen
