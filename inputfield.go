@@ -372,7 +372,7 @@ func (field *InputField) OnKeyEvent(event KeyEvent) bool {
 			field.RemovePreviousWord()
 		}
 	case tcell.KeyBackspace:
-		field.RemovePreviousWord()
+		field.RemovePreviousCharacter()
 	case tcell.KeyBackspace2:
 		field.RemovePreviousCharacter()
 	case tcell.KeyTab:
