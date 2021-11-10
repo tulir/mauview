@@ -350,6 +350,13 @@ func (field *InputField) Submit(event KeyEvent) bool {
 	return true
 }
 
+// Global options to specify which of the two backspace key codes should remove the whole previous word.
+// If false, only the previous character will be removed with that key code.
+var (
+	Backspace1RemovesWord = true
+	Backspace2RemovesWord = false
+)
+
 func (field *InputField) OnKeyEvent(event KeyEvent) bool {
 	defer field.handleInputChanges(field.text)
 
@@ -372,9 +379,17 @@ func (field *InputField) OnKeyEvent(event KeyEvent) bool {
 			field.RemovePreviousWord()
 		}
 	case tcell.KeyBackspace:
-		field.RemovePreviousWord()
+		if Backspace1RemovesWord {
+			field.RemovePreviousWord()
+		} else {
+			field.RemovePreviousCharacter()
+		}
 	case tcell.KeyBackspace2:
-		field.RemovePreviousCharacter()
+		if Backspace2RemovesWord {
+			field.RemovePreviousWord()
+		} else {
+			field.RemovePreviousCharacter()
+		}
 	case tcell.KeyTab:
 		if field.tabComplete != nil {
 			field.tabComplete(field.text, field.cursorOffset)
