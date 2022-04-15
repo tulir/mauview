@@ -8,7 +8,7 @@
 package mauview
 
 import (
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 // KeyEvent is an interface of the *tcell.EventKey type.
@@ -22,7 +22,16 @@ type KeyEvent interface {
 	Modifiers() tcell.ModMask
 }
 
-// PasteEvent is an interface of the *tcell.EventPaste type.
+type customPasteEvent struct {
+	*tcell.EventPaste
+	text string
+}
+
+func (cpe customPasteEvent) Text() string {
+	return cpe.text
+}
+
+// PasteEvent is an interface of the customPasteEvent type.
 type PasteEvent interface {
 	tcell.Event
 	// The text pasted.
@@ -70,7 +79,7 @@ func (seh *SimpleEventHandler) OnMouseEvent(event MouseEvent) bool {
 	return false
 }
 
-type NoopEventHandler struct {}
+type NoopEventHandler struct{}
 
 func (neh NoopEventHandler) OnKeyEvent(event KeyEvent) bool {
 	return false
@@ -101,5 +110,5 @@ func OffsetMouseEvent(evt MouseEvent, offsetX, offsetY int) *proxyEventMouse {
 	if ok {
 		evt = proxy.MouseEvent
 	}
-	return &proxyEventMouse{evt, x+offsetX, y+offsetY}
+	return &proxyEventMouse{evt, x + offsetX, y + offsetY}
 }

@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
-
 	"runtime/debug"
+	"time"
 )
 
 var writer io.Writer

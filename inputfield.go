@@ -16,7 +16,7 @@ import (
 
 	"github.com/mattn/go-runewidth"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 // InputField is a single-line user-editable text field.

@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 type ProgressBar struct {
@@ -74,7 +74,7 @@ func (pb *ProgressBar) Draw(screen Screen) {
 	width, _ := screen.Size()
 	if pb.indeterminate {
 		barWidth := width / 6
-		pos := int(time.Now().Sub(pb.indeterminateStart).Milliseconds() / 200) % (width + barWidth)
+		pos := int(time.Now().Sub(pb.indeterminateStart).Milliseconds()/200) % (width + barWidth)
 		for x := pos - barWidth; x < pos; x++ {
 			screen.SetCell(x, 0, pb.style, Blocks[8])
 		}

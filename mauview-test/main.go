@@ -8,8 +8,9 @@
 package main
 
 import (
-	"maunium.net/go/mauview"
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
+
+	"go.mau.fi/mauview"
 )
 
 type Text struct {

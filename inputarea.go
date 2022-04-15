@@ -14,7 +14,7 @@ import (
 	"github.com/mattn/go-runewidth"
 	"github.com/zyedidia/clipboard"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 // InputArea is a multi-line user-editable text area.
@@ -931,7 +931,7 @@ func (field *InputArea) OnPasteEvent(event PasteEvent) bool {
 // Paste reads the clipboard and inserts the content at the cursor position.
 func (field *InputArea) Paste() {
 	text, _ := clipboard.ReadAll("clipboard")
-	field.OnPasteEvent(tcell.NewEventPaste(text, ""))
+	field.OnPasteEvent(customPasteEvent{nil, text})
 }
 
 // Copy copies the currently selected content onto the clipboard.

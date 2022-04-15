@@ -8,8 +8,8 @@
 package mauview
 
 type genericChild struct {
-	screen    *ProxyScreen
-	target    Component
+	screen *ProxyScreen
+	target Component
 }
 
 func (child genericChild) Focus() {

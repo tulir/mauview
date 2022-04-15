@@ -11,7 +11,7 @@ import (
 	"github.com/lucasb-eyer/go-colorful"
 	"github.com/mattn/go-runewidth"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 // TabSize is the number of spaces with which a tab character will be replaced.

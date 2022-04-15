@@ -8,7 +8,7 @@
 package mauview
 
 import (
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 // Screen is a subset of the tcell Screen.

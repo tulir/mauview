@@ -9,10 +9,11 @@ package mauview
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 type Component interface {
@@ -67,6 +68,7 @@ func (app *Application) receiveNewScreen() (bool, error) {
 		return true, err
 	}
 	app.screen.EnableMouse()
+	app.screen.EnablePaste()
 	app.Redraw()
 	return true, nil
 }
@@ -144,20 +146,38 @@ func (app *Application) Start() error {
 		}
 	}()
 
+	var pasteBuffer strings.Builder
+	var isPasting bool
+
 MainLoop:
 	for {
 		select {
-		case event := <-app.events:
-			switch event := event.(type) {
+		case eventInterface := <-app.events:
+			switch event := eventInterface.(type) {
 			case nil:
 				break MainLoop
 			case *tcell.EventKey:
-				if app.Root.OnKeyEvent(event) {
+				if isPasting {
+					switch event.Key() {
+					case tcell.KeyRune:
+						pasteBuffer.WriteRune(event.Rune())
+					case tcell.KeyEnter:
+						pasteBuffer.WriteByte('\n')
+					}
+				} else if app.Root.OnKeyEvent(event) {
 					app.redraw() // app.update()
 				}
 			case *tcell.EventPaste:
-				if app.Root.OnPasteEvent(event) {
-					app.redraw() // app.update()
+				if event.Start() {
+					isPasting = true
+					pasteBuffer.Reset()
+				} else {
+					customEvt := customPasteEvent{event, pasteBuffer.String()}
+					isPasting = false
+					pasteBuffer.Reset()
+					if app.Root.OnPasteEvent(customEvt) {
+						app.redraw() // app.update()
+					}
 				}
 			case *tcell.EventMouse:
 				if app.Root.OnMouseEvent(event) {

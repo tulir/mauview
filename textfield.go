@@ -10,7 +10,7 @@ package mauview
 import (
 	"sync"
 
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 type TextField struct {

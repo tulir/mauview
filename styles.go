@@ -4,7 +4,7 @@
 
 package mauview
 
-import "maunium.net/go/tcell"
+import "go.mau.fi/tcell"
 
 // Styles defines various colors used when primitives are initialized. These
 // may be changed to accommodate a different look and feel.

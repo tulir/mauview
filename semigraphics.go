@@ -4,7 +4,7 @@
 
 package mauview
 
-import "maunium.net/go/tcell"
+import "go.mau.fi/tcell"
 
 // Semigraphics provides an easy way to access unicode characters for drawing.
 //

@@ -8,7 +8,7 @@
 package mauview
 
 import (
-	"maunium.net/go/tcell"
+	"go.mau.fi/tcell"
 )
 
 type FractionalCenterer struct {
