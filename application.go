@@ -41,6 +41,7 @@ type Application struct {
 	updates           chan func()
 	screenReplacement chan tcell.Screen
 	redrawTicker      *time.Ticker
+	stopping          bool
 }
 
 const queueSize = 255
@@ -205,9 +206,10 @@ func (app *Application) Stop() {
 	if screen == nil {
 		return
 	}
+	app.stopping = true
 	app.screen = nil
-	screen.Fini()
 	app.screenReplacement <- nil
+	screen.Fini()
 }
 
 func (app *Application) Suspend(wait func()) bool {
@@ -237,6 +239,9 @@ func (app *Application) Redraw() {
 }
 
 func (app *Application) redraw() {
+	if app.stopping {
+		return
+	}
 	app.screen.HideCursor()
 	app.Root.Draw(app.screen)
 	app.update()
