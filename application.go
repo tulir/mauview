@@ -42,6 +42,7 @@ type Application struct {
 	screenReplacement chan tcell.Screen
 	redrawTicker      *time.Ticker
 	stopping          bool
+	stop              chan struct{}
 }
 
 const queueSize = 255
@@ -52,6 +53,7 @@ func NewApplication() *Application {
 		updates:           make(chan func(), queueSize),
 		screenReplacement: make(chan tcell.Screen, 1),
 		redrawTicker:      time.NewTicker(1 * time.Minute),
+		stop:              make(chan struct{}),
 	}
 }
 
@@ -192,6 +194,8 @@ MainLoop:
 			app.redraw()
 		case updater := <-app.updates:
 			updater()
+		case <-app.stop:
+			break MainLoop
 		}
 	}
 
@@ -207,6 +211,7 @@ func (app *Application) Stop() {
 		return
 	}
 	app.stopping = true
+	app.stop <- struct{}{}
 	app.screen = nil
 	app.screenReplacement <- nil
 	screen.Fini()
@@ -240,18 +245,15 @@ func (app *Application) Redraw() {
 
 func (app *Application) redraw() {
 	app.RLock()
-	if app.stopping {
+	screen := app.screen
+	if app.stopping || screen == nil {
 		app.RUnlock()
 		return
 	}
-	screen := app.screen
 	app.RUnlock()
-	if screen == nil {
-		return
-	}
 	screen.HideCursor()
 	app.Root.Draw(screen)
-	screen.Show()
+	app.update()
 }
 
 func (app *Application) Update() {
