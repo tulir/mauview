@@ -241,12 +241,17 @@ func (app *Application) Redraw() {
 func (app *Application) redraw() {
 	app.RLock()
 	if app.stopping {
+		app.RUnlock()
 		return
 	}
-	app.screen.HideCursor()
-	app.Root.Draw(app.screen)
-	app.update()
+	screen := app.screen
 	app.RUnlock()
+	if screen == nil {
+		return
+	}
+	screen.HideCursor()
+	app.Root.Draw(screen)
+	screen.Show()
 }
 
 func (app *Application) Update() {
