@@ -516,7 +516,7 @@ func (field *InputArea) MoveCursorLeft(moveWord, extendSelection bool) {
 	}
 }
 
-// MoveCursorLeft moves the cursor right.
+// MoveCursorRight moves the cursor right.
 //
 // If moveWord is true, the cursor moves a whole word to the right.
 //
@@ -537,6 +537,27 @@ func (field *InputArea) MoveCursorRight(moveWord, extendSelection bool) {
 		field.extendSelection(diff)
 	} else {
 		field.moveCursor(diff)
+	}
+}
+
+func (field *InputArea) MoveCursorHome(extendSelection bool) {
+	if extendSelection {
+		field.extendSelection(-iaStringWidth(iaSubstringBefore(field.text, field.cursorOffsetW)))
+	} else {
+		field.selectionEndW = -1
+		field.selectionStartW = -1
+		field.cursorOffsetW = 0
+	}
+}
+
+func (field *InputArea) MoveCursorEnd(extendSelection bool) {
+	if extendSelection {
+		after := field.text[len(iaSubstringBefore(field.text, field.cursorOffsetW)):]
+		field.extendSelection(iaStringWidth(after))
+	} else {
+		field.selectionEndW = -1
+		field.selectionStartW = -1
+		field.cursorOffsetW = iaStringWidth(field.text)
 	}
 }
 
@@ -988,6 +1009,10 @@ func (field *InputArea) OnKeyEvent(event KeyEvent) bool {
 		field.MoveCursorUp(hasMod(tcell.ModShift))
 	case tcell.KeyDown:
 		field.MoveCursorDown(hasMod(tcell.ModShift))
+	case tcell.KeyHome:
+		field.MoveCursorHome(hasMod(tcell.ModShift))
+	case tcell.KeyEnd:
+		field.MoveCursorEnd(hasMod(tcell.ModShift))
 	case tcell.KeyDelete:
 		field.RemoveNextCharacter()
 		doSnapshot = true
