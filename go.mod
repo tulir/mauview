@@ -7,7 +7,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.13
 	github.com/rivo/uniseg v0.2.0
 	github.com/zyedidia/clipboard v1.0.3
-	go.mau.fi/tcell v0.0.0-20220415185117-592f364693a2
+	go.mau.fi/tcell v0.0.0-20220416164612-f5dbb33f6c9c
 )
 
 require (
