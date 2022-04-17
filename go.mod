@@ -4,10 +4,10 @@ go 1.17
 
 require (
 	github.com/lucasb-eyer/go-colorful v1.2.0
-	github.com/mattn/go-runewidth v0.0.13
+	github.com/mattn/go-runewidth v0.0.14-0.20220323023645-f9d555329d96
 	github.com/rivo/uniseg v0.2.0
 	github.com/zyedidia/clipboard v1.0.3
-	go.mau.fi/tcell v0.0.0-20220416164612-f5dbb33f6c9c
+	go.mau.fi/tcell v0.0.0-20220417202829-9f14d62226c5
 )
 
 require (

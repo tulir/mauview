@@ -446,7 +446,7 @@ func iaRuneWidth(ch rune) int {
 }
 
 func iaStringWidth(s string) (width int) {
-	w := StringWidth(s)
+	w := runewidth.StringWidth(s)
 	for _, ch := range s {
 		if ch == '\n' {
 			w++
