@@ -53,7 +53,7 @@ func main() {
 	grid.AddComponent(mauview.NewBox(mauview.Center(mauview.NewBox(nil), 10, 5).SetAlwaysFocusChild(true)), 2, 2, 1, 1)
 	grid.AddComponent(mauview.NewBox(nil), 0, 4, 2, 1)
 	grid.AddComponent(mauview.NewBox(mauview.NewInputField()), 0, 3, 3, 1)
-	app.Root = mauview.NewBox(grid)
+	app.SetRoot(mauview.NewBox(grid))
 	err := app.Start()
 	if err != nil {
 		panic(err)
