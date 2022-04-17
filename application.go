@@ -9,6 +9,7 @@ package mauview
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -34,56 +35,36 @@ type FocusableComponent interface {
 }
 
 type Application struct {
-	sync.RWMutex
-	screen            tcell.Screen
-	Root              Component
-	events            chan tcell.Event
-	updates           chan func()
-	screenReplacement chan tcell.Screen
-	redrawTicker      *time.Ticker
-	stopping          bool
-	stop              chan struct{}
+	screenLock   sync.RWMutex
+	screen       tcell.Screen
+	root         Component
+	updates      chan interface{}
+	redrawTicker *time.Ticker
+	stop         chan struct{}
+	waitForStop  chan struct{}
 }
 
 const queueSize = 255
 
 func NewApplication() *Application {
 	return &Application{
-		events:            make(chan tcell.Event, queueSize),
-		updates:           make(chan func(), queueSize),
-		screenReplacement: make(chan tcell.Screen, 1),
-		redrawTicker:      time.NewTicker(1 * time.Minute),
-		stop:              make(chan struct{}),
+		updates:      make(chan interface{}, queueSize),
+		redrawTicker: time.NewTicker(1 * time.Minute),
+		stop:         make(chan struct{}, 1),
 	}
 }
 
-func (app *Application) receiveNewScreen() (bool, error) {
-	screen := <-app.screenReplacement
-	if screen == nil {
-		app.events <- nil
-		return false, nil
+func newScreen(events chan tcell.Event) (tcell.Screen, error) {
+	if screen, err := tcell.NewScreen(); err != nil {
+		return nil, fmt.Errorf("failed to create screen: %w", err)
+	} else if err = screen.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize screen: %w", err)
+	} else {
+		screen.EnableMouse()
+		screen.EnablePaste()
+		go screen.ChannelEvents(events, nil)
+		return screen, nil
 	}
-
-	app.Lock()
-	app.screen = screen
-	app.Unlock()
-	if err := screen.Init(); err != nil {
-		return true, err
-	}
-	app.screen.EnableMouse()
-	app.screen.EnablePaste()
-	app.Redraw()
-	return true, nil
-}
-
-func (app *Application) makeNewScreen() error {
-	screen, err := tcell.NewScreen()
-	if err != nil {
-		return err
-	}
-
-	app.screenReplacement <- screen
-	return nil
 }
 
 func (app *Application) SetRedrawTicker(tick time.Duration) {
@@ -92,73 +73,40 @@ func (app *Application) SetRedrawTicker(tick time.Duration) {
 }
 
 func (app *Application) Start() error {
-	if app.Root == nil {
+	if app.root == nil {
 		return errors.New("root component not set")
 	}
 
-	err := app.makeNewScreen()
+	events := make(chan tcell.Event, queueSize)
+	screen, err := newScreen(events)
 	if err != nil {
 		return err
 	}
+
+	app.screenLock.Lock()
+	app.screen = screen
+	app.screenLock.Unlock()
+	app.waitForStop = make(chan struct{})
 
 	defer func() {
-		if p := recover(); p != nil {
-			if app.screen != nil {
-				app.screen.Fini()
-			}
-			panic(p)
-		}
-	}()
-
-	_, err = app.receiveNewScreen()
-	if err != nil {
-		return err
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				if app.screen != nil {
-					app.screen.Fini()
-				}
-				panic(p)
-			}
-		}()
-		defer wg.Done()
-		for {
-			app.RLock()
-			screen := app.screen
-			app.RUnlock()
-			if screen == nil {
-				break
-			}
-
-			event := screen.PollEvent()
-			if event == nil {
-				ok, err := app.receiveNewScreen()
-				if err != nil {
-					panic(err)
-				} else if !ok {
-					break
-				}
-			} else {
-				app.events <- event
-			}
+		app.screenLock.Lock()
+		app.screen = nil
+		app.screenLock.Unlock()
+		close(app.waitForStop)
+		if screen != nil {
+			screen.Fini()
 		}
 	}()
 
 	var pasteBuffer strings.Builder
 	var isPasting bool
 
-MainLoop:
 	for {
+		var redraw bool
+		var clear bool
 		select {
-		case eventInterface := <-app.events:
+		case eventInterface := <-events:
 			switch event := eventInterface.(type) {
-			case nil:
-				break MainLoop
 			case *tcell.EventKey:
 				if isPasting {
 					switch event.Key() {
@@ -167,8 +115,8 @@ MainLoop:
 					case tcell.KeyEnter:
 						pasteBuffer.WriteByte('\n')
 					}
-				} else if app.Root.OnKeyEvent(event) {
-					app.redraw() // app.update()
+				} else {
+					redraw = app.root.OnKeyEvent(event)
 				}
 			case *tcell.EventPaste:
 				if event.Start() {
@@ -178,90 +126,117 @@ MainLoop:
 					customEvt := customPasteEvent{event, pasteBuffer.String()}
 					isPasting = false
 					pasteBuffer.Reset()
-					if app.Root.OnPasteEvent(customEvt) {
-						app.redraw() // app.update()
-					}
+					redraw = app.root.OnPasteEvent(customEvt)
 				}
 			case *tcell.EventMouse:
-				if app.Root.OnMouseEvent(event) {
-					app.redraw() // app.update()
-				}
+				redraw = app.root.OnMouseEvent(event)
 			case *tcell.EventResize:
-				app.screen.Clear()
-				app.redraw()
+				clear = true
+				redraw = true
 			}
 		case <-app.redrawTicker.C:
-			app.redraw()
-		case updater := <-app.updates:
-			updater()
+			redraw = true
+		case updaterInterface := <-app.updates:
+			switch updater := updaterInterface.(type) {
+			case redrawUpdate:
+				redraw = true
+			case setRootUpdate:
+				app.root = updater.newRoot
+				focusable, ok := app.root.(Focusable)
+				if ok {
+					focusable.Focus()
+				}
+				redraw = true
+				clear = true
+			case suspendUpdate:
+				screen.Fini()
+				screen = nil
+				app.screenLock.Lock()
+				app.screen = nil
+				app.screenLock.Unlock()
+				updater.wait()
+				events = make(chan tcell.Event, queueSize)
+				screen, err = newScreen(events)
+				if err != nil {
+					panic(err)
+				}
+				app.screenLock.Lock()
+				app.screen = screen
+				app.screenLock.Unlock()
+				redraw = true
+				clear = true
+			}
 		case <-app.stop:
-			break MainLoop
+			return nil
+		}
+		select {
+		case <-app.stop:
+			return nil
+		default:
+		}
+		if redraw {
+			if clear {
+				screen.Clear()
+			}
+			screen.HideCursor()
+			app.root.Draw(screen)
+			screen.Show()
 		}
 	}
-
-	wg.Wait()
-	return nil
 }
 
 func (app *Application) Stop() {
-	app.Lock()
-	defer app.Unlock()
-	screen := app.screen
-	if screen == nil {
-		return
+	select {
+	case app.stop <- struct{}{}:
+	default:
 	}
-	app.stopping = true
-	app.stop <- struct{}{}
-	app.screen = nil
-	app.screenReplacement <- nil
-	screen.Fini()
+	<-app.waitForStop
 }
 
-func (app *Application) Suspend(wait func()) bool {
-	app.RLock()
-	screen := app.screen
-	app.RUnlock()
-	if screen == nil {
-		return false
+func (app *Application) ForceStop() {
+	app.screen.Fini()
+	select {
+	case app.stop <- struct{}{}:
+	default:
 	}
-	screen.Fini()
-	wait()
-	_ = app.makeNewScreen()
-	return true
 }
 
-func (app *Application) QueueUpdate(update func()) {
-	app.updates <- update
+type suspendUpdate struct {
+	wait func()
+}
+
+type redrawUpdate struct{}
+
+type setRootUpdate struct {
+	newRoot Component
+}
+
+func (app *Application) Suspend(wait func()) {
+	app.updates <- suspendUpdate{wait}
+}
+
+func (app *Application) Redraw() {
+	app.updates <- redrawUpdate{}
+}
+
+func (app *Application) SetRoot(view Component) {
+	app.screenLock.RLock()
+	defer app.screenLock.RUnlock()
+	if app.screen != nil {
+		app.updates <- setRootUpdate{view}
+	} else {
+		app.root = view
+		focusable, ok := app.root.(Focusable)
+		if ok {
+			focusable.Focus()
+		}
+	}
 }
 
 // Screen returns the main tcell screen currently used in the app.
 func (app *Application) Screen() tcell.Screen {
-	return app.screen
-}
-
-func (app *Application) Redraw() {
-	app.QueueUpdate(app.redraw)
-}
-
-func (app *Application) redraw() {
-	app.RLock()
+	app.screenLock.RLock()
 	screen := app.screen
-	if app.stopping || screen == nil {
-		app.RUnlock()
-		return
-	}
-	app.RUnlock()
-	screen.HideCursor()
-	app.Root.Draw(screen)
-	app.update()
-}
-
-func (app *Application) Update() {
-	app.QueueUpdate(app.update)
-}
-
-func (app *Application) update() {
-	if app.screen != nil {
-		app.screen.Show()
-	}
+	app.screenLock.RUnlock()
+	return screen
 }
