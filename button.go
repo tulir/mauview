@@ -82,7 +82,6 @@ func (b *Button) Draw(screen Screen) {
 		style = b.focusedStyle
 	}
 	screen.SetStyle(style)
-	screen.Clear()
 	PrintWithStyle(screen, b.text, 0, 0, width, AlignCenter, style)
 }
 
