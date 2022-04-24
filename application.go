@@ -1,5 +1,5 @@
 // mauview - A Go TUI library based on tcell.
-// Copyright © 2019 Tulir Asokan
+// Copyright © 2022 Tulir Asokan
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,6 +10,7 @@ package mauview
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -149,20 +150,18 @@ func (app *Application) Start() error {
 				redraw = true
 				clear = true
 			case suspendUpdate:
-				screen.Fini()
-				screen = nil
-				app.screenLock.Lock()
-				app.screen = nil
-				app.screenLock.Unlock()
-				updater.wait()
-				events = make(chan tcell.Event, queueSize)
-				screen, err = newScreen(events)
+				err = screen.Suspend()
 				if err != nil {
+					// This shouldn't fail
 					panic(err)
 				}
-				app.screenLock.Lock()
-				app.screen = screen
-				app.screenLock.Unlock()
+				updater.wait()
+				err = screen.Resume()
+				if err != nil {
+					screen.Fini()
+					fmt.Println("Failed to resume screen:", err)
+					os.Exit(40)
+				}
 				redraw = true
 				clear = true
 			}
