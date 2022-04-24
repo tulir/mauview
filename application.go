@@ -43,6 +43,7 @@ type Application struct {
 	redrawTicker *time.Ticker
 	stop         chan struct{}
 	waitForStop  chan struct{}
+	alwaysClear  bool
 }
 
 const queueSize = 255
@@ -52,6 +53,7 @@ func NewApplication() *Application {
 		updates:      make(chan interface{}, queueSize),
 		redrawTicker: time.NewTicker(1 * time.Minute),
 		stop:         make(chan struct{}, 1),
+		alwaysClear:  true,
 	}
 }
 
@@ -174,7 +176,7 @@ func (app *Application) Start() error {
 		default:
 		}
 		if redraw {
-			if clear {
+			if clear || app.alwaysClear {
 				screen.Clear()
 			}
 			screen.HideCursor()
@@ -238,4 +240,8 @@ func (app *Application) Screen() tcell.Screen {
 	screen := app.screen
 	app.screenLock.RUnlock()
 	return screen
+}
+
+func (app *Application) SetAlwaysClear(always bool) {
+	app.alwaysClear = always
 }
