@@ -186,6 +186,7 @@ func (grid *Grid) Draw(screen Screen) {
 		grid.OnResize(screen.Size())
 	}
 	grid.forceResize = false
+	screen.Clear()
 	screenChanged := false
 	if screen != grid.screen {
 		grid.screen = screen

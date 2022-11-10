@@ -69,6 +69,7 @@ func (flex *Flex) RemoveComponent(comp Component) *Flex {
 
 func (flex *Flex) Draw(screen Screen) {
 	width, height := screen.Size()
+	screen.Clear()
 	relTotalSize := width
 	if flex.direction == FlexRow {
 		relTotalSize = height

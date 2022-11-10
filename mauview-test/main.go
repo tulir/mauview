@@ -29,7 +29,7 @@ func main() {
 	grid := mauview.NewGrid()
 	textComp := &Text{mauview.SimpleEventHandler{}, "Hello, World!"}
 	textComp.OnKey = func(event mauview.KeyEvent) bool {
-		if event.Key() == tcell.KeyCtrlC || event.Rune() == 'q' {
+		if event.Key() == tcell.KeyCtrlC {
 			app.Stop()
 		}
 		return false
