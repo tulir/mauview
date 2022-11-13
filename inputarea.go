@@ -361,9 +361,9 @@ func (field *InputArea) prepareText(width int) {
 }
 
 // updateViewOffset updates the view offset so that:
-//   * it is not negative
-//   * it is not unnecessarily high
-//   * the cursor is within the rendered area
+//   - it is not negative
+//   - it is not unnecessarily high
+//   - the cursor is within the rendered area
 func (field *InputArea) updateViewOffset(height int) {
 	if field.viewOffsetY < 0 {
 		field.viewOffsetY = 0
