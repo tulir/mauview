@@ -95,10 +95,10 @@ func (app *Application) Start() error {
 		app.screenLock.Lock()
 		app.screen = nil
 		app.screenLock.Unlock()
-		close(app.waitForStop)
 		if screen != nil {
 			screen.Fini()
 		}
+		close(app.waitForStop)
 	}()
 
 	var pasteBuffer strings.Builder
