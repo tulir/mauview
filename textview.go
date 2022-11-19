@@ -9,7 +9,6 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/lucasb-eyer/go-colorful"
 	"github.com/mattn/go-runewidth"
 
 	"go.mau.fi/tcell"
@@ -898,18 +897,9 @@ func (t *TextView) Draw(screen Screen) {
 				}
 			}
 			if highlighted {
-				fg, bg, _ := style.Decompose()
-				if bg == tcell.ColorDefault {
-					r, g, b := fg.RGB()
-					c := colorful.Color{R: float64(r) / 255, G: float64(g) / 255, B: float64(b) / 255}
-					_, _, li := c.Hcl()
-					if li < .5 {
-						bg = tcell.ColorWhite
-					} else {
-						bg = tcell.ColorBlack
-					}
-				}
-				style = style.Background(fg).Foreground(bg)
+				_, _, attrs := style.Decompose()
+				reversed := attrs&tcell.AttrReverse != 0
+				style = style.Reverse(!reversed)
 			}
 
 			// Skip to the right.
