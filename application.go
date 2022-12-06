@@ -195,7 +195,9 @@ func (app *Application) Stop() {
 }
 
 func (app *Application) ForceStop() {
-	app.screen.Fini()
+	if screen := app.screen; screen != nil {
+		screen.Fini()
+	}
 	select {
 	case app.stop <- struct{}{}:
 	default:
