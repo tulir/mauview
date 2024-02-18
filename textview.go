@@ -11,7 +11,7 @@ import (
 
 	"github.com/mattn/go-runewidth"
 
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 // TabSize is the number of spaces with which a tab character will be replaced.
