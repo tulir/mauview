@@ -38,6 +38,15 @@ type PasteEvent interface {
 	Text() string
 }
 
+type customMouseEvent struct {
+	*tcell.EventMouse
+	motion bool
+}
+
+func (cme customMouseEvent) HasMotion() bool {
+	return cme.motion
+}
+
 // MouseEvent is an interface of the *tcell.EventMouse type.
 type MouseEvent interface {
 	tcell.Event
