@@ -38,6 +38,7 @@ type FocusableComponent interface {
 type Application struct {
 	screenLock   sync.RWMutex
 	screen       tcell.Screen
+	prevMouseEvt *tcell.EventMouse
 	root         Component
 	updates      chan interface{}
 	redrawTicker *time.Ticker
@@ -50,6 +51,7 @@ const queueSize = 255
 
 func NewApplication() *Application {
 	return &Application{
+		prevMouseEvt: &tcell.EventMouse{},
 		updates:      make(chan interface{}, queueSize),
 		redrawTicker: time.NewTicker(1 * time.Minute),
 		stop:         make(chan struct{}, 1),
@@ -132,7 +134,10 @@ func (app *Application) Start() error {
 					redraw = app.root.OnPasteEvent(customEvt)
 				}
 			case *tcell.EventMouse:
-				redraw = app.root.OnMouseEvent(event)
+				hasMotion := app.prevMouseEvt.Buttons() == event.Buttons()
+				customEvt := customMouseEvent{event, hasMotion}
+				app.prevMouseEvt = event
+				redraw = app.root.OnMouseEvent(customEvt)
 			case *tcell.EventResize:
 				clear = true
 				redraw = true
