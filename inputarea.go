@@ -14,7 +14,7 @@ import (
 	"github.com/mattn/go-runewidth"
 	"github.com/zyedidia/clipboard"
 
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 // InputArea is a multi-line user-editable text area.

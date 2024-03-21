@@ -8,7 +8,7 @@
 package mauview
 
 import (
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 type KeyCaptureFunc func(event KeyEvent) KeyEvent
