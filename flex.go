@@ -130,6 +130,7 @@ func (flex *Flex) SetFocused(comp Component) {
 		if child.target == comp {
 			flex.focused = &child
 			flex.focused.Focus()
+			break
 		}
 	}
 }
