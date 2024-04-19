@@ -126,9 +126,10 @@ func (flex *Flex) OnPasteEvent(event PasteEvent) bool {
 }
 
 func (flex *Flex) SetFocused(comp Component) {
-	for _, child := range flex.children {
-		if child.target == comp {
-			flex.focused = &child
+	for i := range flex.children {
+		childp := &flex.children[i]
+		if childp.target == comp {
+			flex.focused = childp
 			flex.focused.Focus()
 			break
 		}
