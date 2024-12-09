@@ -1,11 +1,13 @@
 module go.mau.fi/mauview
 
-go 1.18
+go 1.22.0
+
+toolchain go1.23.3
 
 require (
-	github.com/gdamore/tcell/v2 v2.4.0
-	github.com/mattn/go-runewidth v0.0.15
-	github.com/rivo/uniseg v0.4.3
+	github.com/gdamore/tcell/v2 v2.7.4
+	github.com/mattn/go-runewidth v0.0.16
+	github.com/rivo/uniseg v0.4.7
 	github.com/zyedidia/clipboard v1.0.4
 )
 
