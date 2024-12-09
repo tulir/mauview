@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 type ProgressBar struct {

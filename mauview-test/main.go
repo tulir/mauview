@@ -8,7 +8,7 @@
 package main
 
 import (
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 
 	"go.mau.fi/mauview"
 )

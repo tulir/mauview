@@ -13,7 +13,7 @@ import (
 	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 // Text alignment within a box.

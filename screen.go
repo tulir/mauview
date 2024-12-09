@@ -8,7 +8,7 @@
 package mauview
 
 import (
-	"go.mau.fi/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 // Screen is a subset of the tcell Screen.
