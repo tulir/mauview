@@ -134,7 +134,8 @@ func (app *Application) Start() error {
 					redraw = app.root.OnPasteEvent(customEvt)
 				}
 			case *tcell.EventMouse:
-				hasMotion := app.prevMouseEvt.Buttons() == event.Buttons()
+				onlyButtons := event.Buttons() < tcell.WheelUp
+				hasMotion := onlyButtons && app.prevMouseEvt.Buttons() == event.Buttons()
 				customEvt := customMouseEvent{event, hasMotion}
 				app.prevMouseEvt = event
 				redraw = app.root.OnMouseEvent(customEvt)
