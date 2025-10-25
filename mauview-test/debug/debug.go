@@ -36,14 +36,14 @@ func init() {
 
 func Printf(text string, args ...interface{}) {
 	if writer != nil {
-		fmt.Fprintf(writer, time.Now().Format("[2006-01-02 15:04:05] "))
+		fmt.Fprint(writer, time.Now().Format("[2006-01-02 15:04:05] "))
 		fmt.Fprintf(writer, text+"\n", args...)
 	}
 }
 
 func Print(text ...interface{}) {
 	if writer != nil {
-		fmt.Fprintf(writer, time.Now().Format("[2006-01-02 15:04:05] "))
+		fmt.Fprint(writer, time.Now().Format("[2006-01-02 15:04:05] "))
 		fmt.Fprintln(writer, text...)
 	}
 }
