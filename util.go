@@ -10,10 +10,9 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 // Text alignment within a box.

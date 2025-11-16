@@ -11,10 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 	"github.com/zyedidia/clipboard"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 // InputArea is a multi-line user-editable text area.
