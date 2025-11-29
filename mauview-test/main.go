@@ -8,54 +8,105 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/gdamore/tcell/v2"
 
 	"go.mau.fi/mauview"
 )
 
 type Text struct {
-	mauview.SimpleEventHandler
-	Text string
+	tv *mauview.TextView
 }
 
 func (text *Text) Draw(screen mauview.Screen) {
-	for i, char := range text.Text {
-		screen.SetCell(i, 0, tcell.StyleDefault, char)
-	}
+	text.tv.Draw(screen)
 }
 
-func main() {
-	app := mauview.NewApplication()
-	grid := mauview.NewGrid()
-	textComp := &Text{mauview.SimpleEventHandler{}, "Hello, World!"}
-	textComp.OnKey = func(event mauview.KeyEvent) bool {
-		if event.Key() == tcell.KeyCtrlC {
+func (text *Text) OnKeyEvent(event mauview.KeyEvent) bool {
+	if event.Key() == tcell.KeyCtrlC || (event.Rune() == 'c' && event.Modifiers() == tcell.ModCtrl) {
+		go func() {
 			app.Stop()
-		}
-		return false
+			os.Exit(1)
+		}()
 	}
-	grid.SetColumn(0, 25)
-	grid.SetRow(1, 15)
-	grid.SetRow(3, 5)
-	grid.SetRow(4, 3)
-	grid.AddComponent(mauview.NewBox(textComp), 1, 0, 2, 2)
-	grid.AddComponent(mauview.NewBox(mauview.NewFlex().SetDirection(mauview.FlexRow).
-		AddFixedComponent(mauview.NewBox(nil), 10).
-		AddProportionalComponent(mauview.NewBox(nil), 3).
-		AddProportionalComponent(mauview.NewBox(nil), 1).
-		AddFixedComponent(mauview.NewBox(nil), 10)), 0, 0, 1, 3)
-	grid.AddComponent(mauview.NewBox(
-		mauview.NewGrid().
-			AddComponent(&Text{mauview.SimpleEventHandler{}, "Hello, World! (again)"}, 0, 1, 1, 1).
-			AddComponent(mauview.NewBox(mauview.NewInputArea().SetPlaceholder("I'm holding a place!")), 0, 0, 2, 1).
-			AddComponent(mauview.NewBox(nil), 1, 1, 1, 1)),
-		1, 2, 1, 1)
-	grid.AddComponent(mauview.NewBox(mauview.Center(mauview.NewBox(nil), 10, 5).SetAlwaysFocusChild(true)), 2, 2, 1, 1)
-	grid.AddComponent(mauview.NewBox(nil), 0, 4, 2, 1)
-	grid.AddComponent(mauview.NewBox(mauview.NewInputField()), 0, 3, 3, 1)
-	app.SetRoot(mauview.NewBox(grid))
+	_, _ = fmt.Fprintf(
+		text.tv, "Key=%s (%d) Rune=%s (%d) Mod=%s (%d)\n",
+		keyName(event.Key()), event.Key(), runeName(event.Rune()), event.Rune(), modName(event.Modifiers()), event.Modifiers())
+	text.tv.ScrollToEnd()
+	text.tv.OnKeyEvent(event)
+	return true
+}
+
+func (text *Text) OnPasteEvent(event mauview.PasteEvent) bool {
+	return text.tv.OnPasteEvent(event)
+}
+
+func (text *Text) OnMouseEvent(event mauview.MouseEvent) bool {
+	return text.tv.OnMouseEvent(event)
+}
+
+var app *mauview.Application
+
+func main() {
+	app = mauview.NewApplication()
+	textComp := &Text{mauview.NewTextView()}
+	app.SetRoot(mauview.NewBox(textComp))
 	err := app.Start()
 	if err != nil {
 		panic(err)
 	}
+}
+
+func keyName(key tcell.Key) string {
+	name, ok := tcell.KeyNames[key]
+	if ok {
+		return name
+	}
+	if key == tcell.KeyRune {
+		return "Rune"
+	}
+	return "Unknown"
+}
+
+func runeName(r rune) string {
+	switch r {
+	case 0:
+		return "NUL"
+	case '\n':
+		return "LF"
+	case '\r':
+		return "CR"
+	case '\t':
+		return "TAB"
+	case ' ':
+		return "Space"
+	default:
+		if r < 32 {
+			return fmt.Sprintf("Ctrl+%c", r+'A'-1)
+		}
+		return string(r)
+	}
+}
+
+func modName(mod tcell.ModMask) (name string) {
+	if mod&tcell.ModCtrl != 0 {
+		name += "Ctrl+"
+	}
+	if mod&tcell.ModAlt != 0 {
+		name += "Alt+"
+	}
+	if mod&tcell.ModShift != 0 {
+		name += "Shift+"
+	}
+	if mod&tcell.ModMeta != 0 {
+		name += "Meta+"
+	}
+	if name == "" {
+		name = "None"
+	} else {
+		name = name[:len(name)-1]
+	}
+	return
 }
