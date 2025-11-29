@@ -103,6 +103,9 @@ func modName(mod tcell.ModMask) (name string) {
 	if mod&tcell.ModMeta != 0 {
 		name += "Meta+"
 	}
+	if mod&tcell.ModHyper != 0 {
+		name += "Hyper+"
+	}
 	if name == "" {
 		name = "None"
 	} else {
